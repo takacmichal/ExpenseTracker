@@ -16,3 +16,5 @@ frontend/.angular/
 
 # OS
 .DS_Store
+
+.claude
