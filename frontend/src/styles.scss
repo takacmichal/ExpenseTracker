@@ -1,0 +1,116 @@
+@use '@fontsource-variable/space-grotesk';
+@use '@fontsource-variable/instrument-sans';
+@use '@fontsource/ibm-plex-mono/400.css' as mono400;
+@use '@fontsource/ibm-plex-mono/500.css' as mono500;
+@use '@fontsource/ibm-plex-mono/600.css' as mono600;
+@use 'primeicons/primeicons.css';
+
+:root {
+  --et-bg: #0b1115;
+  --et-surface: #121b21;
+  --et-surface-2: #18242b;
+  --et-line: #22323b;
+  --et-text: #e6edf1;
+  --et-muted: #8da2ae;
+  --et-faint: #5c7683;
+
+  /* Money leaving, money arriving, money kept. */
+  --et-ember: #e0805c;
+  --et-tide: #57a8c7;
+  --et-brass: #d9a441;
+
+  --et-display: 'Space Grotesk Variable', 'Space Grotesk', system-ui, sans-serif;
+  --et-body: 'Instrument Sans Variable', 'Instrument Sans', system-ui, sans-serif;
+  --et-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--et-bg);
+  color: var(--et-text);
+  font-family: var(--et-body);
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--et-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+a {
+  color: var(--et-brass);
+}
+
+/* Every figure in this app is money, so all of them get tabular mono. */
+.et-num {
+  font-family: var(--et-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.02em;
+}
+
+.et-in {
+  color: var(--et-tide);
+}
+
+.et-out {
+  color: var(--et-ember);
+}
+
+.et-kept {
+  color: var(--et-brass);
+}
+
+/* Small caps-ish label used above figures and section headings. */
+.et-eyebrow {
+  font-family: var(--et-body);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--et-faint);
+}
+
+/* Faint ruled lines, the way a paper ledger is ruled. Used behind the auth screens. */
+.et-ledger {
+  position: relative;
+  isolation: isolate;
+}
+
+.et-ledger::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0 31px,
+    rgba(141, 162, 174, 0.07) 31px 32px
+  );
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 20%, transparent 75%);
+}
+
+:focus-visible {
+  outline: 2px solid var(--et-brass);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
