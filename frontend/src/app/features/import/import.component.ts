@@ -13,6 +13,7 @@ import { MessageService } from 'primeng/api';
 import { AccountService } from '../../core/api/account.service';
 import { ImportService } from '../../core/api/import.service';
 import { ImportBatch, ImportPreview } from '../../core/models';
+import { chartPalette } from '../../theme';
 
 @Component({
   selector: 'app-import',
@@ -98,7 +99,7 @@ import { ImportBatch, ImportPreview } from '../../core/models';
                 <td>{{ row.description }}</td>
                 <td>
                   @if (row.categoryName) {
-                    <span class="dot" [style.background]="row.categoryColor ?? '#5c7683'"></span>
+                    <span class="dot" [style.background]="row.categoryColor ?? uncategorised"></span>
                     {{ row.categoryName }}
                   } @else {
                     <span class="unmatched">Nezaradené</span>
@@ -197,7 +198,7 @@ import { ImportBatch, ImportPreview } from '../../core/models';
     }
 
     .error-cell {
-      color: var(--et-ember);
+      color: var(--et-out);
       font-size: 0.875rem;
     }
 
@@ -247,6 +248,7 @@ export class ImportComponent {
   private readonly accountService = inject(AccountService);
   private readonly messages = inject(MessageService);
 
+  protected readonly uncategorised = chartPalette.faint;
   protected readonly accounts = this.accountService.accounts;
   protected readonly preview = signal<ImportPreview | null>(null);
   protected readonly batches = signal<ImportBatch[]>([]);

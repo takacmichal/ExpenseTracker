@@ -12,7 +12,7 @@ import { AuthService } from '../../core/auth/auth.service';
   selector: 'app-login',
   imports: [ReactiveFormsModule, RouterLink, ButtonModule, InputTextModule, PasswordModule, MessageModule],
   template: `
-    <div class="auth et-ledger">
+    <div class="auth et-grid">
       <div class="card">
         <div class="brand">
           <span class="mark">SK</span>
@@ -81,7 +81,7 @@ import { AuthService } from '../../core/auth/auth.service';
       width: 1.875rem;
       height: 1.875rem;
       border-radius: 0.5rem;
-      background: var(--et-brass);
+      background: var(--et-kept);
       color: #1a1206;
       font-family: var(--et-mono);
       font-size: 0.75rem;
@@ -89,7 +89,7 @@ import { AuthService } from '../../core/auth/auth.service';
     }
 
     .wordmark {
-      font-family: var(--et-display);
+      font-family: var(--et-sans);
       font-size: 1.0625rem;
       font-weight: 600;
       letter-spacing: -0.02em;
