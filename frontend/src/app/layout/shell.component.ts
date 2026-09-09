@@ -81,19 +81,19 @@ interface NavItem {
       place-items: center;
       width: 1.875rem;
       height: 1.875rem;
-      border-radius: 0.5rem;
-      background: var(--et-brass);
-      color: #1a1206;
+      border-radius: 0.4375rem;
+      background: var(--et-kept);
+      color: #1a1204;
       font-family: var(--et-mono);
       font-size: 0.75rem;
       font-weight: 600;
     }
 
     .wordmark {
-      font-family: var(--et-display);
+      font-family: var(--et-sans);
       font-size: 1.0625rem;
       font-weight: 600;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.015em;
     }
 
     nav {
@@ -109,7 +109,7 @@ interface NavItem {
       align-items: center;
       gap: 0.625rem;
       padding: 0.5625rem 0.75rem;
-      border-radius: 0.5rem;
+      border-radius: 0.4375rem;
       color: var(--et-muted);
       text-decoration: none;
       font-size: 0.9375rem;
@@ -130,17 +130,22 @@ interface NavItem {
       background: var(--et-surface-2);
     }
 
-    /* Brass edge marks the current section without shouting. */
+    nav a.active i {
+      color: var(--et-kept);
+    }
+
+    /* An indicator lamp, not a highlight bar: the panel says which circuit is live. */
     nav a.active::before {
       content: '';
       position: absolute;
       left: 0;
       top: 50%;
       transform: translateY(-50%);
-      width: 2px;
-      height: 1.125rem;
+      width: 3px;
+      height: 0.5rem;
       border-radius: 0 2px 2px 0;
-      background: var(--et-brass);
+      background: var(--et-kept);
+      box-shadow: 0 0 6px rgba(232, 167, 44, 0.55);
     }
 
     .who {

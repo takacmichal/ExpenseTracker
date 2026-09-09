@@ -6,6 +6,7 @@ import { DatePickerModule } from 'primeng/datepicker';
 
 import { ReportService } from '../../core/api/report.service';
 import { CategoryTotal, MonthlySummary } from '../../core/models';
+import { chartPalette } from '../../theme';
 
 interface Segment {
   label: string;
@@ -14,7 +15,7 @@ interface Segment {
   color: string;
 }
 
-const UNCATEGORISED = '#5c7683';
+const UNCATEGORISED = chartPalette.faint;
 
 @Component({
   selector: 'app-dashboard',
@@ -36,7 +37,7 @@ const UNCATEGORISED = '#5c7683';
       />
     </header>
 
-    <section class="hero">
+    <section class="hero et-inset">
       <div class="figures">
         <div class="kept">
           <p class="et-eyebrow">{{ balance() >= 0 ? 'Zostalo' : 'Prekročené o' }}</p>
@@ -58,7 +59,7 @@ const UNCATEGORISED = '#5c7683';
       </div>
 
       @if (base() > 0) {
-        <div class="bar" role="img" [attr.aria-label]="barSummary()">
+        <div class="meter" role="img" [attr.aria-label]="barSummary()">
           @for (segment of segments(); track segment.label) {
             <span
               class="seg"
@@ -152,9 +153,6 @@ const UNCATEGORISED = '#5c7683';
 
     .hero {
       padding: 1.5rem;
-      border: 1px solid var(--et-line);
-      border-radius: 0.875rem;
-      background: var(--et-surface);
       margin-bottom: 1rem;
     }
 
@@ -190,14 +188,27 @@ const UNCATEGORISED = '#5c7683';
       margin: 0;
     }
 
-    /* The signature: one month of money, left to right. */
-    .bar {
+    /* The signature: one month of money, left to right, read like a bargraph. */
+    .meter {
+      position: relative;
       display: flex;
-      gap: 2px;
-      height: 0.75rem;
-      border-radius: 999px;
+      height: 0.625rem;
+      border-radius: 2px;
       overflow: hidden;
       background: var(--et-surface-2);
+    }
+
+    /* Notches are painted over the fill, so the segments cost no extra elements. */
+    .meter::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: repeating-linear-gradient(
+        90deg,
+        transparent 0 5px,
+        var(--et-inset) 5px 7px
+      );
+      pointer-events: none;
     }
 
     .seg {
@@ -209,11 +220,7 @@ const UNCATEGORISED = '#5c7683';
     }
 
     .kept-seg {
-      background: repeating-linear-gradient(
-        135deg,
-        var(--et-brass) 0 6px,
-        color-mix(in srgb, var(--et-brass) 70%, #000) 6px 12px
-      );
+      background: var(--et-kept);
     }
 
     .bar-note {
@@ -246,7 +253,7 @@ const UNCATEGORISED = '#5c7683';
     .panel {
       padding: 1.25rem;
       border: 1px solid var(--et-line);
-      border-radius: 0.875rem;
+      border-radius: 0.75rem;
       background: var(--et-surface);
     }
 
@@ -401,7 +408,7 @@ export class DashboardComponent {
         {
           data: totals.map((total) => total.total),
           backgroundColor: totals.map((total) => total.color ?? UNCATEGORISED),
-          borderColor: '#121b21',
+          borderColor: chartPalette.surface,
           borderWidth: 2,
           hoverOffset: 6,
         },
@@ -410,16 +417,16 @@ export class DashboardComponent {
   });
 
   protected readonly ringOptions = {
-    cutout: '72%',
+    cutout: '78%',
     maintainAspectRatio: true,
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: '#18242b',
-        borderColor: '#22323b',
+        backgroundColor: chartPalette.surface2,
+        borderColor: chartPalette.line,
         borderWidth: 1,
-        titleColor: '#e6edf1',
-        bodyColor: '#8da2ae',
+        titleColor: chartPalette.text,
+        bodyColor: chartPalette.muted,
         padding: 10,
         displayColors: false,
       },

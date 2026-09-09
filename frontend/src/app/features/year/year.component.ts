@@ -6,6 +6,7 @@ import { SelectButtonModule } from 'primeng/selectbutton';
 
 import { ReportService } from '../../core/api/report.service';
 import { Forecast, YearOverview } from '../../core/models';
+import { chartPalette } from '../../theme';
 
 @Component({
   selector: 'app-year',
@@ -27,7 +28,7 @@ import { Forecast, YearOverview } from '../../core/models';
     </header>
 
     @if (forecast(); as f) {
-      <section class="forecast">
+      <section class="forecast et-inset">
         <div class="head">
           <p class="et-eyebrow">Odhad na koniec roka</p>
           <span class="basis">
@@ -100,13 +101,13 @@ import { Forecast, YearOverview } from '../../core/models';
           <ul class="rows">
             @for (row of f.categories; track row.categoryName) {
               <li>
-                <span class="dot" [style.background]="row.color ?? '#5c7683'"></span>
+                <span class="dot" [style.background]="row.color ?? uncategorised"></span>
                 <span class="label">{{ row.categoryName }}</span>
                 <span class="bar">
                   <span
                     class="fill"
                     [style.width.%]="widthOf(row.projectedYearEnd, f)"
-                    [style.background]="row.color ?? '#5c7683'"
+                    [style.background]="row.color ?? uncategorised"
                   ></span>
                 </span>
                 <span class="now et-num">{{ row.actualToDate | currency: 'EUR' }}</span>
@@ -138,12 +139,16 @@ import { Forecast, YearOverview } from '../../core/models';
       font-size: 1.75rem;
     }
 
-    .forecast,
     .panel {
       padding: 1.25rem 1.5rem;
       border: 1px solid var(--et-line);
-      border-radius: 0.875rem;
+      border-radius: 0.75rem;
       background: var(--et-surface);
+      margin-bottom: 1rem;
+    }
+
+    .forecast {
+      padding: 1.25rem 1.5rem;
       margin-bottom: 1rem;
     }
 
@@ -186,7 +191,7 @@ import { Forecast, YearOverview } from '../../core/models';
     .warn {
       margin: 1.25rem 0 0;
       font-size: 0.875rem;
-      color: var(--et-ember);
+      color: var(--et-out);
     }
 
     .charts {
@@ -277,6 +282,8 @@ import { Forecast, YearOverview } from '../../core/models';
 export class YearComponent {
   private readonly reports = inject(ReportService);
 
+  protected readonly uncategorised = chartPalette.faint;
+
   protected readonly year = signal(new Date().getFullYear());
   protected readonly selectedYear = this.year.asReadonly();
   protected readonly overview = signal<YearOverview | null>(null);
@@ -296,13 +303,13 @@ export class YearComponent {
         {
           label: 'Príjmy',
           data: months.map((month) => month.income),
-          backgroundColor: '#57a8c7',
+          backgroundColor: chartPalette.in,
           borderRadius: 3,
         },
         {
           label: 'Výdavky',
           data: months.map((month) => month.expense),
-          backgroundColor: '#e0805c',
+          backgroundColor: chartPalette.out,
           borderRadius: 3,
         },
       ],
@@ -320,12 +327,12 @@ export class YearComponent {
         {
           label: 'Kumulatívny zostatok',
           data: months.slice(0, upTo).map((month) => month.cumulativeBalance),
-          borderColor: '#d9a441',
-          backgroundColor: 'rgba(217, 164, 65, 0.12)',
+          borderColor: chartPalette.kept,
+          backgroundColor: 'rgba(232, 167, 44, 0.12)',
           fill: true,
           tension: 0.3,
           pointRadius: 3,
-          pointBackgroundColor: '#d9a441',
+          pointBackgroundColor: chartPalette.kept,
         },
       ],
     };
@@ -359,26 +366,26 @@ export class YearComponent {
         legend: {
           display: showLegend,
           position: 'bottom' as const,
-          labels: { color: '#8da2ae', boxWidth: 10, boxHeight: 10, usePointStyle: true },
+          labels: { color: chartPalette.muted, boxWidth: 10, boxHeight: 10, usePointStyle: true },
         },
         tooltip: {
-          backgroundColor: '#18242b',
-          borderColor: '#22323b',
+          backgroundColor: chartPalette.surface2,
+          borderColor: chartPalette.line,
           borderWidth: 1,
-          titleColor: '#e6edf1',
-          bodyColor: '#c3d0d8',
+          titleColor: chartPalette.text,
+          bodyColor: chartPalette.muted,
           padding: 10,
         },
       },
       scales: {
         x: {
-          ticks: { color: '#5c7683' },
+          ticks: { color: chartPalette.faint },
           grid: { display: false },
-          border: { color: '#22323b' },
+          border: { color: chartPalette.line },
         },
         y: {
-          ticks: { color: '#5c7683' },
-          grid: { color: '#18242b' },
+          ticks: { color: chartPalette.faint },
+          grid: { color: chartPalette.surface2 },
           border: { display: false },
         },
       },

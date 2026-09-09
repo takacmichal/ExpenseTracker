@@ -18,6 +18,7 @@ import { CategoryService } from '../../core/api/category.service';
 import { TransactionService } from '../../core/api/transaction.service';
 import { Transaction, TransactionType } from '../../core/models';
 import { toIsoDate } from '../../core/date-utils';
+import { chartPalette } from '../../theme';
 
 @Component({
   selector: 'app-transactions',
@@ -132,7 +133,7 @@ import { toIsoDate } from '../../core/date-utils';
           <td>{{ row.description || '—' }}</td>
           <td>
             @if (row.categoryName) {
-              <span class="swatch" [style.background]="row.categoryColor ?? '#94a3b8'"></span>
+              <span class="swatch" [style.background]="row.categoryColor ?? uncategorised"></span>
               {{ row.categoryName }}
             } @else {
               <span class="muted">Nezaradené</span>
@@ -153,8 +154,8 @@ import { toIsoDate } from '../../core/date-utils';
             {{ row.type === 'EXPENSE' ? '−' : '+' }}{{ row.amount | currency: 'EUR' }}
           </td>
           <td class="actions-col">
-            <p-button icon="pi pi-pencil" severity="secondary" [text]="true" (onClick)="openEdit(row)" />
-            <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="confirmDelete(row)" />
+            <p-button icon="pi pi-pencil" severity="secondary" [text]="true" ariaLabel="Upraviť" (onClick)="openEdit(row)" />
+            <p-button icon="pi pi-trash" severity="danger" [text]="true" ariaLabel="Vymazať" (onClick)="confirmDelete(row)" />
           </td>
         </tr>
       </ng-template>
@@ -326,6 +327,8 @@ import { toIsoDate } from '../../core/date-utils';
   `,
 })
 export class TransactionsComponent {
+  protected readonly uncategorised = chartPalette.faint;
+
   private readonly fb = inject(FormBuilder);
   private readonly transactions = inject(TransactionService);
   private readonly accountService = inject(AccountService);

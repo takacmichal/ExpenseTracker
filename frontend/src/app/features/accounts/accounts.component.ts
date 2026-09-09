@@ -48,8 +48,8 @@ import { Account } from '../../core/models';
           <td>{{ row.name }}</td>
           <td>{{ row.currency }}</td>
           <td class="actions-col">
-            <p-button icon="pi pi-pencil" severity="secondary" [text]="true" (onClick)="openEdit(row)" />
-            <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="confirmDelete(row)" />
+            <p-button icon="pi pi-pencil" severity="secondary" [text]="true" ariaLabel="Upraviť" (onClick)="openEdit(row)" />
+            <p-button icon="pi pi-trash" severity="danger" [text]="true" ariaLabel="Vymazať" (onClick)="confirmDelete(row)" />
           </td>
         </tr>
       </ng-template>

@@ -2,79 +2,95 @@ import Aura from '@primeuix/themes/aura';
 import { definePreset } from '@primeuix/themes';
 
 /**
- * Brass on deep petrol ink.
+ * Amber on indigo, read off an instrument panel.
  *
- * The palette is the data: money leaving is ember, money arriving is tide, money kept is brass.
- * Brass doubles as the brand colour so "what you kept" and "the product" read as the same idea.
+ * The palette is the data: money leaving is coral, money arriving is cyan, money kept is amber.
+ * Amber doubles as the brand colour so "what you kept" and "the product" read as the same idea.
+ * Surfaces are indigo rather than neutral black so the amber sits warm against a cool ground.
  */
+
+/** Shared with the Chart.js configs, which cannot read CSS custom properties. */
+export const chartPalette = {
+  bg: '#0e1120',
+  surface: '#161a2c',
+  surface2: '#1e2338',
+  line: '#262b45',
+  text: '#e5e8f5',
+  muted: '#949bc2',
+  faint: '#8189b4',
+  out: '#e8785f',
+  in: '#52b8cf',
+  kept: '#e8a72c',
+} as const;
+
 export const ExpenseTrackerTheme = definePreset(Aura, {
   semantic: {
     primary: {
-      50: '#fbf5e9',
-      100: '#f4e6c6',
-      200: '#ecd39d',
-      300: '#e3bf72',
-      400: '#dcb055',
-      500: '#d9a441',
-      600: '#c08f36',
-      700: '#9c722a',
-      800: '#78571f',
-      900: '#553d15',
-      950: '#33240c',
+      50: '#fdf6e7',
+      100: '#f9e8c2',
+      200: '#f4d795',
+      300: '#efc566',
+      400: '#ebb544',
+      500: '#e8a72c',
+      600: '#cc8f21',
+      700: '#a3711a',
+      800: '#7c5514',
+      900: '#573b0e',
+      950: '#332208',
     },
     colorScheme: {
       dark: {
         surface: {
           0: '#ffffff',
-          50: '#e6edf1',
-          100: '#c3d0d8',
-          200: '#9fb2bd',
-          300: '#7b94a2',
-          400: '#5c7683',
-          500: '#425863',
-          600: '#2d3f49',
-          700: '#22323b',
-          800: '#18242b',
-          900: '#121b21',
-          950: '#0b1115',
+          50: '#e5e8f5',
+          100: '#c6cbe4',
+          200: '#a7aed2',
+          300: '#8189b4',
+          400: '#6a72a0',
+          500: '#4e5580',
+          600: '#383e63',
+          700: '#262b45',
+          800: '#1e2338',
+          900: '#161a2c',
+          950: '#0e1120',
         },
         primary: {
-          color: '#d9a441',
-          contrastColor: '#1a1206',
-          hoverColor: '#e3bf72',
-          activeColor: '#c08f36',
+          color: '#e8a72c',
+          contrastColor: '#1a1204',
+          hoverColor: '#efc566',
+          activeColor: '#cc8f21',
         },
         highlight: {
-          background: 'rgba(217, 164, 65, 0.14)',
-          focusBackground: 'rgba(217, 164, 65, 0.22)',
-          color: '#e3bf72',
-          focusColor: '#f4e6c6',
+          background: 'rgba(232, 167, 44, 0.14)',
+          focusBackground: 'rgba(232, 167, 44, 0.22)',
+          color: '#efc566',
+          focusColor: '#f9e8c2',
         },
         content: {
-          background: '#121b21',
-          hoverBackground: '#18242b',
-          borderColor: '#22323b',
-          color: '#e6edf1',
+          background: '#161a2c',
+          hoverBackground: '#1e2338',
+          borderColor: '#262b45',
+          color: '#e5e8f5',
         },
         text: {
-          color: '#e6edf1',
+          color: '#e5e8f5',
           hoverColor: '#ffffff',
-          mutedColor: '#8da2ae',
-          hoverMutedColor: '#c3d0d8',
+          mutedColor: '#949bc2',
+          hoverMutedColor: '#c6cbe4',
         },
         formField: {
-          background: '#0e161b',
-          filledBackground: '#0e161b',
-          borderColor: '#22323b',
-          hoverBorderColor: '#2d3f49',
-          focusBorderColor: '#d9a441',
-          color: '#e6edf1',
-          placeholderColor: '#5c7683',
+          background: '#090b16',
+          filledBackground: '#090b16',
+          borderColor: '#262b45',
+          hoverBorderColor: '#383e63',
+          focusBorderColor: '#e8a72c',
+          color: '#e5e8f5',
+          placeholderColor: '#8189b4',
         },
         overlay: {
-          modal: { background: '#121b21', borderColor: '#22323b', color: '#e6edf1' },
-          popover: { background: '#121b21', borderColor: '#22323b', color: '#e6edf1' },
-          select: { background: '#121b21', borderColor: '#22323b', color: '#e6edf1' },
+          modal: { background: '#161a2c', borderColor: '#262b45', color: '#e5e8f5' },
+          popover: { background: '#161a2c', borderColor: '#262b45', color: '#e5e8f5' },
+          select: { background: '#161a2c', borderColor: '#262b45', color: '#e5e8f5' },
         },
       },
     },
@@ -82,7 +98,7 @@ export const ExpenseTrackerTheme = definePreset(Aura, {
   components: {
     button: {
       root: {
-        borderRadius: '0.5rem',
+        borderRadius: '0.4375rem',
         paddingX: '1rem',
         gap: '0.5rem',
         label: { fontWeight: '600' },
@@ -90,9 +106,9 @@ export const ExpenseTrackerTheme = definePreset(Aura, {
     },
     card: {
       root: {
-        background: '#121b21',
-        borderRadius: '0.875rem',
-        color: '#e6edf1',
+        background: '#161a2c',
+        borderRadius: '0.75rem',
+        color: '#e5e8f5',
         shadow: 'none',
       },
       body: { padding: '1.25rem' },
@@ -101,15 +117,15 @@ export const ExpenseTrackerTheme = definePreset(Aura, {
     datatable: {
       headerCell: {
         background: 'transparent',
-        color: '#8da2ae',
-        borderColor: '#22323b',
+        color: '#8189b4',
+        borderColor: '#262b45',
       },
-      bodyCell: { borderColor: '#18242b' },
-      row: { background: 'transparent', hoverBackground: '#18242b' },
+      bodyCell: { borderColor: '#1e2338' },
+      row: { background: 'transparent', hoverBackground: '#1e2338' },
     },
-    dialog: { root: { borderRadius: '0.875rem' } },
-    inputtext: { root: { borderRadius: '0.5rem' } },
-    select: { root: { borderRadius: '0.5rem' } },
-    tag: { root: { borderRadius: '0.375rem', fontWeight: '600' } },
+    dialog: { root: { borderRadius: '0.75rem' } },
+    inputtext: { root: { borderRadius: '0.4375rem' } },
+    select: { root: { borderRadius: '0.4375rem' } },
+    tag: { root: { borderRadius: '0.25rem', fontWeight: '600' } },
   },
 });

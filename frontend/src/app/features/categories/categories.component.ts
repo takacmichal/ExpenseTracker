@@ -12,6 +12,10 @@ import { ConfirmationService, MessageService } from 'primeng/api';
 
 import { CategoryService } from '../../core/api/category.service';
 import { Category, TransactionType } from '../../core/models';
+import { chartPalette } from '../../theme';
+
+/** Neutral starting point for a new category, meant to be changed by the user. */
+const DEFAULT_COLOR: string = chartPalette.faint;
 
 @Component({
   selector: 'app-categories',
@@ -80,8 +84,8 @@ import { Category, TransactionType } from '../../core/models';
           </td>
           <td>{{ row.parentName ?? '—' }}</td>
           <td class="actions-col">
-            <p-button icon="pi pi-pencil" severity="secondary" [text]="true" (onClick)="openEdit(row)" />
-            <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="confirmDelete(row)" />
+            <p-button icon="pi pi-pencil" severity="secondary" [text]="true" ariaLabel="Upraviť" (onClick)="openEdit(row)" />
+            <p-button icon="pi pi-trash" severity="danger" [text]="true" ariaLabel="Vymazať" (onClick)="confirmDelete(row)" />
           </td>
         </tr>
       </ng-template>
@@ -266,7 +270,7 @@ export class CategoriesComponent {
   protected readonly form = this.fb.nonNullable.group({
     name: ['', Validators.required],
     type: ['EXPENSE' as TransactionType, Validators.required],
-    color: ['#3B82F6'],
+    color: [DEFAULT_COLOR],
     icon: [''],
     parentId: [null as string | null],
   });
@@ -301,7 +305,7 @@ export class CategoriesComponent {
 
   protected openCreate(): void {
     this.editing.set(null);
-    this.form.reset({ name: '', type: 'EXPENSE', color: '#3B82F6', icon: '', parentId: null });
+    this.form.reset({ name: '', type: 'EXPENSE', color: DEFAULT_COLOR, icon: '', parentId: null });
     this.dialogVisible.set(true);
   }
 
@@ -310,7 +314,7 @@ export class CategoriesComponent {
     this.form.reset({
       name: row.name,
       type: row.type,
-      color: row.color ?? '#3B82F6',
+      color: row.color ?? DEFAULT_COLOR,
       icon: row.icon ?? '',
       parentId: row.parentId,
     });
