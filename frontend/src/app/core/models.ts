@@ -1,3 +1,9 @@
+/*
+ * The backend omits null fields from JSON (`non_null` inclusion), so every nullable field of a
+ * response is optional (`field?: T`), never `| null`: test it with `== null` / `??`, not `=== null`.
+ * Request payloads may still send `null`; the backend reads it the same as a missing field.
+ */
+
 export type TransactionType = 'EXPENSE' | 'INCOME';
 export type TransactionSource = 'MANUAL' | 'IMPORT';
 
@@ -22,25 +28,25 @@ export interface Account {
 export interface Category {
   id: string;
   name: string;
-  color: string | null;
-  icon: string | null;
+  color?: string;
+  icon?: string;
   type: TransactionType;
-  parentId: string | null;
-  parentName: string | null;
+  parentId?: string;
+  parentName?: string;
 }
 
 export interface Transaction {
   id: string;
   amount: number;
   date: string;
-  description: string | null;
+  description?: string;
   type: TransactionType;
   source: TransactionSource;
   accountId: string;
   accountName: string;
-  categoryId: string | null;
-  categoryName: string | null;
-  categoryColor: string | null;
+  categoryId?: string;
+  categoryName?: string;
+  categoryColor?: string;
 }
 
 export interface TransactionRequest {
@@ -70,10 +76,10 @@ export interface MonthlySummary {
 }
 
 export interface CategoryTotal {
-  categoryId: string | null;
-  categoryName: string | null;
-  color: string | null;
-  icon: string | null;
+  categoryId?: string;
+  categoryName?: string;
+  color?: string;
+  icon?: string;
   type: TransactionType;
   total: number;
   transactionCount: number;
@@ -87,16 +93,19 @@ export interface CategoryBreakdown {
 
 export interface ParsedRow {
   lineNumber: number;
-  date: string | null;
-  amount: number | null;
-  description: string | null;
-  type: TransactionType | null;
-  counterparty: string | null;
-  currency: string | null;
-  categoryId: string | null;
-  categoryName: string | null;
-  categoryColor: string | null;
-  error: string | null;
+  date?: string;
+  amount?: number;
+  description?: string;
+  type?: TransactionType;
+  counterparty?: string;
+  currency?: string;
+  categoryId?: string;
+  categoryName?: string;
+  categoryColor?: string;
+  error?: string;
+  bankType?: string;
+  /** True when the target account already holds this row; it is skipped on import. */
+  duplicate: boolean;
 }
 
 export interface ImportPreview {
@@ -105,6 +114,7 @@ export interface ImportPreview {
   validRows: number;
   invalidRows: number;
   categorisedRows: number;
+  duplicateRows: number;
   rows: ParsedRow[];
 }
 
@@ -113,8 +123,10 @@ export interface ImportBatch {
   filename: string;
   importedAt: string;
   rowCount: number;
+  /** Rows skipped because the account already held them (0 for batches before detection). */
+  duplicateCount: number;
   status: 'PENDING' | 'COMPLETED' | 'FAILED';
-  errorMessage: string | null;
+  errorMessage?: string;
 }
 
 export interface MonthPoint {
@@ -137,7 +149,7 @@ export interface YearOverview {
 
 export interface CategoryForecast {
   categoryName: string;
-  color: string | null;
+  color?: string;
   actualToDate: number;
   projectedYearEnd: number;
 }
@@ -160,10 +172,10 @@ export interface Income {
   id: string;
   date: string;
   netAmount: number;
-  grossAmount: number | null;
-  employer: string | null;
-  note: string | null;
-  transactionId: string | null;
+  grossAmount?: number;
+  employer?: string;
+  note?: string;
+  transactionId?: string;
 }
 
 export interface IncomePayload {
@@ -173,4 +185,118 @@ export interface IncomePayload {
   employer: string | null;
   note: string | null;
   transactionId: string | null;
+}
+
+export interface UndoImportResult {
+  batchId: string;
+  deletedTransactions: number;
+}
+
+export interface CategoryRule {
+  id: string;
+  pattern: string;
+  priority: number;
+  active: boolean;
+  categoryId: string;
+  categoryName: string;
+  categoryColor?: string;
+  categoryType: TransactionType;
+}
+
+export interface CategoryRuleRequest {
+  pattern: string;
+  categoryId: string;
+  priority: number;
+  active: boolean;
+}
+
+export interface RuleTestRequest {
+  pattern: string;
+  type?: TransactionType;
+}
+
+export interface RuleTestResponse {
+  pattern: string;
+  matchCount: number;
+  /** Up to 10 matching transactions, newest first. */
+  sample: Transaction[];
+}
+
+export interface Budget {
+  id: string;
+  categoryId?: string;
+  categoryName?: string;
+  categoryColor?: string;
+  amountLimit: number;
+}
+
+export interface BudgetRequest {
+  /** Omitted for the overall monthly budget across all expenses. */
+  categoryId?: string;
+  amountLimit: number;
+}
+
+export interface BudgetStatus {
+  budgetId: string;
+  categoryId?: string;
+  categoryName?: string;
+  categoryColor?: string;
+  amountLimit: number;
+  spent: number;
+  /** Can be negative once the budget is exceeded. */
+  remaining: number;
+  /** Can exceed 100. */
+  percentUsed: number;
+  /** Only for the month in progress: spending extrapolated to the end of the month. */
+  projectedSpend?: number;
+  exceeded: boolean;
+}
+
+export interface BudgetStatusReport {
+  year: number;
+  month: number;
+  currentMonth: boolean;
+  budgets: BudgetStatus[];
+}
+
+export type BulkAction = 'SET_CATEGORY' | 'DELETE';
+
+export interface BulkRequest {
+  ids: string[];
+  action: BulkAction;
+  /** SET_CATEGORY only; omitted clears the category. */
+  categoryId?: string;
+}
+
+export interface BulkResult {
+  affected: number;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface RecurringPayment {
+  label: string;
+  categoryId?: string;
+  categoryName?: string;
+  categoryColor?: string;
+  averageAmount: number;
+  occurrences: number;
+  monthsSeen: number;
+  lastDate: string;
+  /** Median gap between charges, in days. */
+  intervalDays: number;
+  /** lastDate + intervalDays; in the past when the payment seems to have stopped. */
+  nextExpectedDate: string;
+  estimatedYearlyCost: number;
+}
+
+export interface RecurringReport {
+  from: string;
+  to: string;
+  payments: RecurringPayment[];
 }
