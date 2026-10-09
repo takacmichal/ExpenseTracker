@@ -54,6 +54,6 @@ public class AuthController {
         return userRepository
                 .findById(id)
                 .map(user -> new UserSummary(user.getId(), user.getEmail(), user.getName()))
-                .orElseThrow(() -> new NotFoundException("User", id));
+                .orElseThrow(() -> new NotFoundException("Používateľ", id));
     }
 }

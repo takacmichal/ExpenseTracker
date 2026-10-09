@@ -9,11 +9,14 @@ import com.expensetracker.common.NotFoundException;
 import com.expensetracker.common.TransactionSource;
 import com.expensetracker.imports.dto.ImportDtos.ImportBatchResponse;
 import com.expensetracker.imports.dto.ImportDtos.ImportPreview;
+import com.expensetracker.imports.dto.ImportDtos.UndoImportResult;
 import com.expensetracker.transaction.Transaction;
 import com.expensetracker.transaction.TransactionRepository;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -24,6 +27,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class ImportService {
+
+    private static final String DEFAULT_FILENAME = "import.csv";
+    private static final int MAX_FILENAME_LENGTH = 255;
 
     private final BankStatementParser parser;
     private final ImportBatchRepository importBatchRepository;
@@ -47,15 +53,28 @@ public class ImportService {
         this.currentUser = currentUser;
     }
 
+    /**
+     * With an {@code accountId} the rows that account already holds are flagged as duplicates;
+     * without one there is nothing to compare against, so none are.
+     */
     @Transactional(readOnly = true)
-    public ImportPreview preview(MultipartFile file) {
-        List<ParsedRow> rows = categorise(parse(file), categoryMatcher.rulesFor(currentUser.requireId()));
+    public ImportPreview preview(MultipartFile file, UUID accountId) {
+        UUID userId = currentUser.requireId();
+        List<ParsedRow> rows = categorise(parse(file), categoryMatcher.rulesFor(userId));
+
+        if (accountId != null) {
+            accountRepository
+                    .findByIdAndUserId(accountId, userId)
+                    .orElseThrow(() -> new NotFoundException("Účet", accountId));
+            rows = flagDuplicates(rows, userId, accountId);
+        }
 
         int valid = (int) rows.stream().filter(ParsedRow::isValid).count();
         int categorised = (int) rows.stream().filter(row -> row.categoryId() != null).count();
+        int duplicates = (int) rows.stream().filter(ParsedRow::duplicate).count();
 
         return new ImportPreview(
-                file.getOriginalFilename(), rows.size(), valid, rows.size() - valid, categorised, rows);
+                filenameOf(file), rows.size(), valid, rows.size() - valid, categorised, duplicates, rows);
     }
 
     @Transactional
@@ -63,11 +82,14 @@ public class ImportService {
         var user = currentUser.requireReference();
         var account = accountRepository
                 .findByIdAndUserId(accountId, currentUser.requireId())
-                .orElseThrow(() -> new NotFoundException("Account", accountId));
+                .orElseThrow(() -> new NotFoundException("Účet", accountId));
 
         List<CategoryRule> rules = categoryMatcher.rulesFor(user.getId());
-        List<ParsedRow> rows = categorise(
-                parse(file).stream().filter(ParsedRow::isValid).toList(), rules);
+        List<ParsedRow> candidates = flagDuplicates(
+                categorise(parse(file).stream().filter(ParsedRow::isValid).toList(), rules),
+                user.getId(),
+                accountId);
+        List<ParsedRow> rows = candidates.stream().filter(row -> !row.duplicate()).toList();
 
         Map<UUID, Category> categoriesById = rules.stream()
                 .map(CategoryRule::getCategory)
@@ -75,9 +97,10 @@ public class ImportService {
 
         ImportBatch batch = new ImportBatch();
         batch.setUser(user);
-        batch.setFilename(file.getOriginalFilename());
+        batch.setFilename(filenameOf(file));
         batch.setImportedAt(Instant.now());
         batch.setRowCount(rows.size());
+        batch.setDuplicateCount(candidates.size() - rows.size());
         batch.setStatus(ImportStatus.COMPLETED);
         importBatchRepository.save(batch);
 
@@ -106,6 +129,35 @@ public class ImportService {
                 .toList();
     }
 
+    /**
+     * Undoes an import: removes every transaction the batch created, including ones edited since,
+     * and then the batch itself.
+     */
+    @Transactional
+    public UndoImportResult deleteBatch(UUID id) {
+        UUID userId = currentUser.requireId();
+        ImportBatch batch = importBatchRepository
+                .findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new NotFoundException("Import", id));
+
+        int deleted = transactionRepository.deleteByImportBatch(batch.getId(), userId);
+        importBatchRepository.delete(batch);
+        return new UndoImportResult(batch.getId(), deleted);
+    }
+
+    /** Compares only against the date range the file covers, so a large account is not loaded whole. */
+    private List<ParsedRow> flagDuplicates(List<ParsedRow> rows, UUID userId, UUID accountId) {
+        List<LocalDate> dates = rows.stream().filter(ParsedRow::isValid).map(ParsedRow::date).toList();
+        if (dates.isEmpty()) {
+            return rows;
+        }
+        LocalDate from = dates.stream().min(Comparator.naturalOrder()).orElseThrow();
+        LocalDate to = dates.stream().max(Comparator.naturalOrder()).orElseThrow();
+
+        return DuplicateDetector.flag(
+                rows, transactionRepository.findByUserIdAndAccountIdAndDateBetween(userId, accountId, from, to));
+    }
+
     /** Applies the rules once, so the preview and the import cannot disagree. */
     private List<ParsedRow> categorise(List<ParsedRow> rows, List<CategoryRule> rules) {
         return rows.stream()
@@ -123,12 +175,21 @@ public class ImportService {
 
     private List<ParsedRow> parse(MultipartFile file) {
         if (file.isEmpty()) {
-            throw new IllegalArgumentException("Uploaded file is empty");
+            throw new IllegalArgumentException("Nahraný súbor je prázdny.");
         }
         try {
             return parser.parse(file.getInputStream());
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
+    }
+
+    /** import_batches.filename is NOT NULL VARCHAR(255), and the client controls the name it sends. */
+    static String filenameOf(MultipartFile file) {
+        String name = file.getOriginalFilename();
+        if (name == null || name.isBlank()) {
+            return DEFAULT_FILENAME;
+        }
+        return name.length() > MAX_FILENAME_LENGTH ? name.substring(0, MAX_FILENAME_LENGTH) : name;
     }
 }

@@ -57,6 +57,18 @@ public class CategoryMatcher {
         return firstMatch(merchant, eligible).or(() -> firstMatch(type, eligible));
     }
 
+    /**
+     * Whether a single pattern would hit a transaction, with the same semantics as {@link #match}:
+     * accent-folded substring of the description or, failing that, of the bank's type.
+     */
+    public static boolean matches(String pattern, String description, String bankType) {
+        String needle = TextNormalizer.fold(pattern);
+        if (needle.isEmpty()) {
+            return false;
+        }
+        return TextNormalizer.fold(description).contains(needle) || TextNormalizer.fold(bankType).contains(needle);
+    }
+
     private Optional<Category> firstMatch(String haystack, List<CategoryRule> rules) {
         if (haystack.isEmpty()) {
             return Optional.empty();

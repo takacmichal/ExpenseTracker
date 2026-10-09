@@ -17,10 +17,17 @@ public final class ImportDtos {
             int validRows,
             int invalidRows,
             int categorisedRows,
+            int duplicateRows,
             List<ParsedRow> rows) {}
 
     public record ImportBatchResponse(
-            UUID id, String filename, Instant importedAt, int rowCount, ImportStatus status, String errorMessage) {
+            UUID id,
+            String filename,
+            Instant importedAt,
+            int rowCount,
+            int duplicateCount,
+            ImportStatus status,
+            String errorMessage) {
 
         public static ImportBatchResponse from(ImportBatch batch) {
             return new ImportBatchResponse(
@@ -28,8 +35,11 @@ public final class ImportDtos {
                     batch.getFilename(),
                     batch.getImportedAt(),
                     batch.getRowCount(),
+                    batch.getDuplicateCount(),
                     batch.getStatus(),
                     batch.getErrorMessage());
         }
     }
+
+    public record UndoImportResult(UUID batchId, int deletedTransactions) {}
 }

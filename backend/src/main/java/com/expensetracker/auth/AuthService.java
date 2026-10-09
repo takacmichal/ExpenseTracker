@@ -8,6 +8,8 @@ import com.expensetracker.category.CategoryService;
 import com.expensetracker.common.ConflictException;
 import com.expensetracker.user.User;
 import com.expensetracker.user.UserRepository;
+import java.util.Optional;
+import java.util.UUID;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,22 +22,32 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final CategoryService categoryService;
+    private final FailedAttemptLimiter limiter;
+
+    /**
+     * Compared against when the e-mail is unknown, so a miss costs the same BCrypt work as a wrong
+     * password and response time does not reveal which e-mails are registered.
+     */
+    private final String dummyPasswordHash;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
-            CategoryService categoryService) {
+            CategoryService categoryService,
+            FailedAttemptLimiter limiter) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.categoryService = categoryService;
+        this.limiter = limiter;
+        this.dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
     }
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmailIgnoreCase(request.email())) {
-            throw new ConflictException("Email is already registered");
+            throw new ConflictException("Tento e-mail je už zaregistrovaný.");
         }
 
         User user = userRepository.save(new User(
@@ -44,22 +56,31 @@ public class AuthService {
         // A brand new account with no categories cannot categorise anything it imports.
         categoryService.createDefaultsFor(user);
 
-        return toAuthResponse(user);
+        return authResponseFor(user);
     }
 
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository
-                .findByEmailIgnoreCase(request.email())
-                .filter(candidate -> passwordEncoder.matches(request.password(), candidate.getPasswordHash()))
-                .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
+        String limiterKey = FailedAttemptLimiter.loginKey(request.email());
+        limiter.checkAllowed(limiterKey);
 
-        return toAuthResponse(user);
+        Optional<User> found = userRepository.findByEmailIgnoreCase(request.email());
+        String hash = found.map(User::getPasswordHash).orElse(dummyPasswordHash);
+        boolean matches = passwordEncoder.matches(request.password(), hash);
+
+        if (found.isEmpty() || !matches) {
+            limiter.recordFailure(limiterKey);
+            throw new BadCredentialsException("Nesprávny e-mail alebo heslo.");
+        }
+
+        limiter.reset(limiterKey);
+        return authResponseFor(found.get());
     }
 
-    private AuthResponse toAuthResponse(User user) {
+    /** Issues a token bound to the user's current token version. */
+    public AuthResponse authResponseFor(User user) {
         return new AuthResponse(
-                jwtService.generateToken(user.getId(), user.getEmail()),
+                jwtService.generateToken(user.getId(), user.getTokenVersion()),
                 jwtService.getExpiresInSeconds(),
                 new UserSummary(user.getId(), user.getEmail(), user.getName()));
     }

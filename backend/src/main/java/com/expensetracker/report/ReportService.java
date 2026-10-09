@@ -4,8 +4,10 @@ import com.expensetracker.auth.CurrentUser;
 import com.expensetracker.common.TransactionType;
 import com.expensetracker.report.dto.ReportDtos.CategoryBreakdown;
 import com.expensetracker.report.dto.ReportDtos.MonthlySummary;
+import com.expensetracker.report.dto.ReportDtos.RecurringReport;
 import com.expensetracker.transaction.TransactionRepository;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.UUID;
@@ -17,10 +19,12 @@ public class ReportService {
 
     private final TransactionRepository transactionRepository;
     private final CurrentUser currentUser;
+    private final Clock clock;
 
-    public ReportService(TransactionRepository transactionRepository, CurrentUser currentUser) {
+    public ReportService(TransactionRepository transactionRepository, CurrentUser currentUser, Clock clock) {
         this.transactionRepository = transactionRepository;
         this.currentUser = currentUser;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -39,5 +43,29 @@ public class ReportService {
     public CategoryBreakdown byCategory(LocalDate from, LocalDate to, TransactionType type) {
         return new CategoryBreakdown(
                 from, to, transactionRepository.totalsByCategory(currentUser.requireId(), from, to, type));
+    }
+
+    /** Looks back twelve months from today; see {@link RecurringDetector} for what counts as recurring. */
+    @Transactional(readOnly = true)
+    public RecurringReport recurring() {
+        LocalDate to = LocalDate.now(clock);
+        LocalDate from = to.minusMonths(12).plusDays(1);
+
+        var payments = transactionRepository
+                .findByUserIdAndTypeAndDateBetween(currentUser.requireId(), TransactionType.EXPENSE, from, to)
+                .stream()
+                .map(transaction -> {
+                    var category = transaction.getCategory();
+                    return new RecurringDetector.Payment(
+                            transaction.getDate(),
+                            transaction.getAmount(),
+                            transaction.getDescription(),
+                            category == null ? null : category.getId(),
+                            category == null ? null : category.getName(),
+                            category == null ? null : category.getColor());
+                })
+                .toList();
+
+        return new RecurringReport(from, to, RecurringDetector.detect(payments));
     }
 }

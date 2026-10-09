@@ -24,6 +24,13 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private String name;
 
+    /**
+     * Copied into every JWT; incrementing it revokes all tokens issued earlier. Only ever bumped
+     * atomically through {@link UserRepository#incrementTokenVersion}.
+     */
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion;
+
     public User(String email, String passwordHash, String name) {
         this.email = email;
         this.passwordHash = passwordHash;

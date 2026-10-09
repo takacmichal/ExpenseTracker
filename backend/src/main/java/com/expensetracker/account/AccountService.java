@@ -58,7 +58,7 @@ public class AccountService {
     public void delete(UUID id) {
         Account account = requireOwned(id);
         if (transactionRepository.existsByAccountId(id)) {
-            throw new ConflictException("Account still has transactions and cannot be deleted");
+            throw new ConflictException("Účet nemožno zmazať, pretože obsahuje transakcie.");
         }
         accountRepository.delete(account);
     }
@@ -66,6 +66,6 @@ public class AccountService {
     private Account requireOwned(UUID id) {
         return accountRepository
                 .findByIdAndUserId(id, currentUser.requireId())
-                .orElseThrow(() -> new NotFoundException("Account", id));
+                .orElseThrow(() -> new NotFoundException("Účet", id));
     }
 }
