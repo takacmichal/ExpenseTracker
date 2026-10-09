@@ -8,6 +8,7 @@ import com.expensetracker.report.dto.ReportDtos.MonthPoint;
 import com.expensetracker.report.dto.ReportDtos.YearOverview;
 import com.expensetracker.transaction.TransactionRepository;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.TextStyle;
@@ -28,10 +29,12 @@ public class ForecastService {
 
     private final TransactionRepository transactionRepository;
     private final CurrentUser currentUser;
+    private final Clock clock;
 
-    public ForecastService(TransactionRepository transactionRepository, CurrentUser currentUser) {
+    public ForecastService(TransactionRepository transactionRepository, CurrentUser currentUser, Clock clock) {
         this.transactionRepository = transactionRepository;
         this.currentUser = currentUser;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -163,7 +166,7 @@ public class ForecastService {
 
     /** December of a past year is complete; the current month never is. */
     private int lastCompleteMonth(int year) {
-        YearMonth now = YearMonth.now();
+        YearMonth now = YearMonth.now(clock);
         if (year < now.getYear()) {
             return 12;
         }

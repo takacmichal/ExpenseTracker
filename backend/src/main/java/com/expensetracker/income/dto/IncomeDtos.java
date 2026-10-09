@@ -13,11 +13,13 @@ public final class IncomeDtos {
     private IncomeDtos() {}
 
     public record IncomeRequest(
-            @NotNull LocalDate date,
-            @NotNull @DecimalMin("0.01") BigDecimal netAmount,
-            @DecimalMin("0.01") BigDecimal grossAmount,
-            @Size(max = 255) String employer,
-            @Size(max = 255) String note,
+            @NotNull(message = "Zadaj dátum.") LocalDate date,
+            @NotNull(message = "Zadaj čistú sumu.")
+                    @DecimalMin(value = "0.01", message = "Čistá suma musí byť aspoň 0,01.")
+                    BigDecimal netAmount,
+            @DecimalMin(value = "0.01", message = "Hrubá suma musí byť aspoň 0,01.") BigDecimal grossAmount,
+            @Size(max = 255, message = "Zamestnávateľ môže mať najviac 255 znakov.") String employer,
+            @Size(max = 255, message = "Poznámka môže mať najviac 255 znakov.") String note,
             UUID transactionId) {}
 
     public record IncomeResponse(

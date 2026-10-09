@@ -2,15 +2,18 @@ package com.expensetracker.transaction;
 
 import com.expensetracker.common.TransactionType;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -23,6 +26,26 @@ public interface TransactionRepository
     @Override
     @EntityGraph(attributePaths = {"account", "category"})
     Page<Transaction> findAll(Specification<Transaction> specification, Pageable pageable);
+
+    @Override
+    @EntityGraph(attributePaths = {"account", "category"})
+    List<Transaction> findAll(Specification<Transaction> specification, Sort sort);
+
+    @EntityGraph(attributePaths = {"account", "category"})
+    List<Transaction> findByUserIdOrderByDateDesc(UUID userId);
+
+    @EntityGraph(attributePaths = "category")
+    List<Transaction> findByUserIdAndTypeAndDateBetween(
+            UUID userId, TransactionType type, LocalDate from, LocalDate to);
+
+    List<Transaction> findByUserIdAndIdIn(UUID userId, Collection<UUID> ids);
+
+    List<Transaction> findByUserIdAndAccountIdAndDateBetween(
+            UUID userId, UUID accountId, LocalDate from, LocalDate to);
+
+    @Modifying
+    @Query("delete from Transaction t where t.importBatch.id = :batchId and t.user.id = :userId")
+    int deleteByImportBatch(@Param("batchId") UUID batchId, @Param("userId") UUID userId);
 
     @Query("""
             select coalesce(sum(t.amount), 0) from Transaction t

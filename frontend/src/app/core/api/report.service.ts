@@ -5,6 +5,7 @@ import {
   CategoryBreakdown,
   Forecast,
   MonthlySummary,
+  RecurringReport,
   TransactionType,
   YearOverview,
 } from '../models';
@@ -40,5 +41,10 @@ export class ReportService {
     return this.http.get<Forecast>(`${this.baseUrl}/forecast`, {
       params: new HttpParams().set('year', year),
     });
+  }
+
+  /** Expenses that repeat over the last twelve months, sorted by yearly cost. */
+  recurring() {
+    return this.http.get<RecurringReport>(`${this.baseUrl}/recurring`);
   }
 }

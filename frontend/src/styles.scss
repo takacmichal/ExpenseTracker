@@ -22,6 +22,17 @@
   --et-in: #52b8cf;
   --et-kept: #e8a72c;
 
+  /* Spacing scale: every gap and padding in the app is one of these. */
+  --et-s1: 0.25rem;
+  --et-s2: 0.5rem;
+  --et-s3: 0.75rem;
+  --et-s4: 1rem;
+  --et-s5: 1.5rem;
+  --et-s6: 2rem;
+
+  --et-radius: 0.75rem;
+  --et-radius-sm: 0.4375rem;
+
   --et-sans: 'IBM Plex Sans', system-ui, sans-serif;
   --et-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
 }
@@ -41,6 +52,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+body {
+  overflow-x: hidden;
+}
+
 h1,
 h2,
 h3 {
@@ -51,6 +66,11 @@ h3 {
 
 a {
   color: var(--et-kept);
+}
+
+/* Router links styled as PrimeNG buttons (<a pButton>) are buttons, not prose links. */
+a.p-button {
+  text-decoration: none;
 }
 
 /* Every figure in this app is money, so all of them get tabular mono. */
@@ -124,5 +144,177 @@ a {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Shared building blocks. Components compose these instead of restating them.
+   --------------------------------------------------------------------------- */
+
+/* A plain surface panel: the default container for anything that is not the hero. */
+.et-panel {
+  padding: var(--et-s5);
+  border: 1px solid var(--et-line);
+  border-radius: var(--et-radius);
+  background: var(--et-surface);
+  min-width: 0;
+}
+
+.et-panel-head {
+  margin: 0 0 var(--et-s4);
+}
+
+.et-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--et-s4);
+}
+
+/* Visible to screen readers only. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Right-aligned tabular figures, for table columns of money. */
+.et-right {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.et-muted {
+  color: var(--et-muted);
+}
+
+.et-faint {
+  color: var(--et-faint);
+}
+
+.et-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.et-actions {
+  width: 6rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* PrimeNG's own cell alignment is more specific than a bare utility class. */
+.p-datatable th.et-right,
+.p-datatable td.et-right,
+.p-datatable th.et-actions,
+.p-datatable td.et-actions {
+  text-align: right;
+}
+
+.et-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Forms: label above control, message below it. */
+.et-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--et-s4);
+}
+
+.et-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.et-field > label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--et-muted);
+}
+
+.et-field .optional {
+  font-weight: 400;
+  color: var(--et-faint);
+}
+
+.et-field > small.hint {
+  font-size: 0.75rem;
+  color: var(--et-faint);
+}
+
+.et-field .p-inputnumber,
+.et-field .p-datepicker,
+.et-field .p-select,
+.et-field .p-password,
+.et-field > input {
+  width: 100%;
+}
+
+.et-field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
+  gap: var(--et-s4);
+}
+
+.et-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--et-s2);
+  padding-top: var(--et-s2);
+}
+
+/* Keyboard hint inside a button or tooltip. */
+.et-kbd {
+  display: inline-block;
+  min-width: 1.25rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--et-line);
+  border-radius: 0.25rem;
+  font-family: var(--et-mono);
+  font-size: 0.6875rem;
+  line-height: 1.25rem;
+  text-align: center;
+  color: var(--et-faint);
+}
+
+/* Tables reflow into stacked rows on phones. Each component places its cells
+   into grid areas on the row; this only strips the table semantics visually. */
+@media (max-width: 720px) {
+  .et-stack-table .p-datatable-table,
+  .et-stack-table .p-datatable-tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .et-stack-table .p-datatable-thead {
+    display: none;
+  }
+
+  .et-stack-table .p-datatable-tbody > tr {
+    display: grid;
+    gap: 0.125rem var(--et-s3);
+    align-items: center;
+    padding: var(--et-s3) var(--et-s2);
+    border-bottom: 1px solid var(--et-surface-2);
+  }
+
+  .et-stack-table .p-datatable-tbody > tr > td {
+    display: block;
+    padding: 0;
+    border: 0;
+    width: auto;
   }
 }

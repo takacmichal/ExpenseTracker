@@ -21,6 +21,21 @@ export const chartPalette = {
   out: '#e8785f',
   in: '#52b8cf',
   kept: '#e8a72c',
+  /** Translucent amber, for the area under the cumulative-balance line. */
+  keptFill: 'rgba(232, 167, 44, 0.12)',
+} as const;
+
+/** Swatch for transactions and categories that have no colour of their own. */
+export const UNCATEGORISED_COLOR: string = chartPalette.faint;
+
+/** Tooltip styling shared by every Chart.js config, so charts read as one instrument. */
+export const chartTooltip = {
+  backgroundColor: chartPalette.surface2,
+  borderColor: chartPalette.line,
+  borderWidth: 1,
+  titleColor: chartPalette.text,
+  bodyColor: chartPalette.muted,
+  padding: 10,
 } as const;
 
 export const ExpenseTrackerTheme = definePreset(Aura, {

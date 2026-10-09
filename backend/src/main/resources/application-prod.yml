@@ -1,0 +1,11 @@
+# Activated with SPRING_PROFILES_ACTIVE=prod. Overrides only what must differ from application.yml.
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  level:
+    com.expensetracker: INFO
