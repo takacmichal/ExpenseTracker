@@ -130,4 +130,12 @@ class CategoryMatcherTest {
 
         assertThat(matcher.match("čokoľvek", null, EXPENSE, rules)).isEmpty();
     }
+
+    @Test
+    void singlePatternMatchesDescriptionOrBankTypeWithoutAccents() {
+        assertThat(CategoryMatcher.matches("kosice", "Kaufland KOŠICE", null)).isTrue();
+        assertThat(CategoryMatcher.matches("sepa platba", "Ján Novák", "SEPA platba")).isTrue();
+        assertThat(CategoryMatcher.matches("lidl", "Kaufland", "Platba kartou")).isFalse();
+        assertThat(CategoryMatcher.matches("   ", "anything", null)).isFalse();
+    }
 }
