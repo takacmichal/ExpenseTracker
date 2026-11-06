@@ -86,7 +86,8 @@ public class GeorgeCsvParser implements BankStatementParser {
                 BigDecimal signedAmount = parseAmount(value(columns, amountColumn));
 
                 String partner = value(columns, partnerColumn);
-                String bankType = value(columns, typeColumn);
+                // transactions.bank_type is VARCHAR(100); an over-long value would fail the whole import.
+                String bankType = truncate(value(columns, typeColumn), 100);
                 String description = buildDescription(
                         partner,
                         value(columns, descriptionColumn),
@@ -130,8 +131,11 @@ public class GeorgeCsvParser implements BankStatementParser {
             parts.add("VS " + variableSymbol.trim());
         }
 
-        String joined = String.join(" · ", parts);
-        return joined.length() > 255 ? joined.substring(0, 255) : joined;
+        return truncate(String.join(" · ", parts), 255);
+    }
+
+    private static String truncate(String value, int max) {
+        return value.length() > max ? value.substring(0, max) : value;
     }
 
     private LocalDate parseDate(String raw) {

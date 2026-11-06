@@ -4,6 +4,7 @@ import com.expensetracker.report.CategoryTotal;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 public final class ReportDtos {
 
@@ -51,4 +52,23 @@ public final class ReportDtos {
             BigDecimal incomeMonthlyChange,
             BigDecimal expenseMonthlyChange,
             List<CategoryForecast> categories) {}
+
+    /**
+     * A payment that repeats at a steady amount. {@code intervalDays} is the median gap between
+     * charges; {@code nextExpectedDate} is the last charge plus that gap.
+     */
+    public record RecurringPayment(
+            String label,
+            UUID categoryId,
+            String categoryName,
+            String categoryColor,
+            BigDecimal averageAmount,
+            int occurrences,
+            int monthsSeen,
+            LocalDate lastDate,
+            int intervalDays,
+            LocalDate nextExpectedDate,
+            BigDecimal estimatedYearlyCost) {}
+
+    public record RecurringReport(LocalDate from, LocalDate to, List<RecurringPayment> payments) {}
 }

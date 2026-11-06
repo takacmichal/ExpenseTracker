@@ -70,7 +70,10 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(List.of(allowedOrigins.split(",")));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true);
+        // Lets a cross-origin client read the filename of a CSV export.
+        configuration.setExposedHeaders(List.of("Content-Disposition"));
+        // The JWT travels in the Authorization header, never in a cookie, so credentialed CORS is not needed.
+        configuration.setAllowCredentials(false);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

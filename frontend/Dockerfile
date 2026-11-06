@@ -1,4 +1,5 @@
-FROM node:22-alpine AS build
+# Angular 22 requires Node ^22.22.3 || ^24.15.0; 24 is the current LTS.
+FROM node:24.15-alpine AS build
 WORKDIR /build
 
 COPY package.json package-lock.json ./

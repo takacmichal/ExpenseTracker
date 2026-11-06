@@ -1,12 +1,15 @@
 package com.expensetracker.category;
 
 import com.expensetracker.auth.CurrentUser;
+import com.expensetracker.budget.BudgetRepository;
 import com.expensetracker.category.dto.CategoryDtos.CategoryRequest;
 import com.expensetracker.category.dto.CategoryDtos.CategoryResponse;
 import com.expensetracker.common.ConflictException;
 import com.expensetracker.common.NotFoundException;
+import com.expensetracker.common.TransactionType;
 import com.expensetracker.transaction.TransactionRepository;
 import com.expensetracker.user.User;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -22,16 +25,19 @@ public class CategoryService {
     private final CategoryRepository categoryRepository;
     private final CategoryRuleRepository categoryRuleRepository;
     private final TransactionRepository transactionRepository;
+    private final BudgetRepository budgetRepository;
     private final CurrentUser currentUser;
 
     public CategoryService(
             CategoryRepository categoryRepository,
             CategoryRuleRepository categoryRuleRepository,
             TransactionRepository transactionRepository,
+            BudgetRepository budgetRepository,
             CurrentUser currentUser) {
         this.categoryRepository = categoryRepository;
         this.categoryRuleRepository = categoryRuleRepository;
         this.transactionRepository = transactionRepository;
+        this.budgetRepository = budgetRepository;
         this.currentUser = currentUser;
     }
 
@@ -138,7 +144,7 @@ public class CategoryService {
     public CategoryResponse update(UUID id, CategoryRequest request) {
         Category category = requireOwned(id);
         if (id.equals(request.parentId())) {
-            throw new ConflictException("A category cannot be its own parent");
+            throw new ConflictException("Kategória nemôže byť nadradená sama sebe.");
         }
         apply(category, request);
         return CategoryResponse.from(category);
@@ -148,25 +154,51 @@ public class CategoryService {
     public void delete(UUID id) {
         Category category = requireOwned(id);
         if (transactionRepository.existsByCategoryId(id)) {
-            throw new ConflictException("Category is still used by transactions and cannot be deleted");
+            throw new ConflictException("Kategóriu nemožno zmazať, pretože ju ešte používajú transakcie.");
         }
         if (categoryRepository.existsByParentId(id)) {
-            throw new ConflictException("Category still has subcategories and cannot be deleted");
+            throw new ConflictException("Kategóriu nemožno zmazať, pretože má podkategórie.");
         }
         categoryRepository.delete(category);
     }
 
     private void apply(Category category, CategoryRequest request) {
+        Category parent = request.parentId() == null ? null : requireOwned(request.parentId());
+        if (category.getId() != null && createsCycle(category.getId(), parent)) {
+            throw new ConflictException("Kategóriu nemožno presunúť pod jej vlastnú podkategóriu.");
+        }
+        // Budgets only make sense for expenses (BudgetService enforces it on create), so a budgeted
+        // category must not quietly turn into an income one.
+        if (category.getId() != null
+                && category.getType() == TransactionType.EXPENSE
+                && request.type() != TransactionType.EXPENSE
+                && budgetRepository.existsByCategoryIdAndUserId(category.getId(), currentUser.requireId())) {
+            throw new ConflictException("Kategória má rozpočet, najprv ho zmaž.");
+        }
         category.setName(request.name());
         category.setColor(request.color());
         category.setIcon(request.icon());
         category.setType(request.type());
-        category.setParent(request.parentId() == null ? null : requireOwned(request.parentId()));
+        category.setParent(parent);
+    }
+
+    /**
+     * True when {@code categoryId} is {@code newParent} itself or one of its ancestors, i.e. the move
+     * would close a loop. The visited set stops the walk on a loop that somehow already exists.
+     */
+    static boolean createsCycle(UUID categoryId, Category newParent) {
+        Set<UUID> visited = new HashSet<>();
+        for (Category ancestor = newParent; ancestor != null; ancestor = ancestor.getParent()) {
+            if (categoryId.equals(ancestor.getId()) || !visited.add(ancestor.getId())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Category requireOwned(UUID id) {
         return categoryRepository
                 .findByIdAndUserId(id, currentUser.requireId())
-                .orElseThrow(() -> new NotFoundException("Category", id));
+                .orElseThrow(() -> new NotFoundException("Kategória", id));
     }
 }

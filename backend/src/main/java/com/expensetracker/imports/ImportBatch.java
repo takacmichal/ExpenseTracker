@@ -35,6 +35,10 @@ public class ImportBatch extends BaseEntity {
     @Column(name = "row_count", nullable = false)
     private int rowCount;
 
+    /** Rows left out because the account already held an identical transaction. */
+    @Column(name = "duplicate_count", nullable = false)
+    private int duplicateCount;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ImportStatus status;

@@ -1,148 +1,192 @@
 import { Component, inject, signal } from '@angular/core';
+import { rxResource } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { ConfirmationService, MessageService } from 'primeng/api';
+import { TooltipModule } from 'primeng/tooltip';
 
 import { AccountService } from '../../core/api/account.service';
 import { Account } from '../../core/models';
+import { FeedbackService } from '../../core/ui/feedback.service';
+import { shouldIgnoreShortcut } from '../../core/ui/keyboard';
+import { EmptyStateComponent } from '../../shared/empty-state.component';
+import { ErrorStateComponent } from '../../shared/error-state.component';
+import { FieldErrorComponent } from '../../shared/field-error.component';
+import { ListSkeletonComponent } from '../../shared/list-skeleton.component';
+import { PageHeaderComponent } from '../../shared/page-header.component';
 
 @Component({
   selector: 'app-accounts',
-  providers: [ConfirmationService],
   imports: [
     ReactiveFormsModule,
+    RouterLink,
     ButtonModule,
     DialogModule,
     InputTextModule,
     SelectModule,
     TableModule,
-    ConfirmDialogModule,
+    TooltipModule,
+    EmptyStateComponent,
+    ErrorStateComponent,
+    FieldErrorComponent,
+    ListSkeletonComponent,
+    PageHeaderComponent,
   ],
+  host: {
+    '(document:keydown)': 'onShortcut($event)',
+  },
   template: `
-    <p-confirmdialog />
+    <app-page-header
+      eyebrow="Nastavenia"
+      heading="Účty"
+      description="Bankové účty, karty alebo hotovosť. Každá transakcia patrí k jednému z nich."
+    >
+      @if (accounts().length) {
+        <p-button
+          label="Pridať účet"
+          icon="pi pi-plus"
+          pTooltip="Nový účet (N)"
+          tooltipPosition="bottom"
+          (onClick)="openCreate()"
+        />
+      }
+    </app-page-header>
 
-    <header class="page-head">
-      <div>
-        <p class="et-eyebrow">Nastavenia</p>
-        <h1>Účty</h1>
+    @if (list.error() && !accounts().length) {
+      <app-error-state
+        heading="Účty sa nepodarilo načítať"
+        [error]="list.error()"
+        (retry)="list.reload()"
+      />
+    } @else if (list.isLoading() && !accounts().length) {
+      <div class="et-panel"><app-list-skeleton [rows]="3" /></div>
+    } @else if (!accounts().length) {
+      <div class="et-panel">
+        <app-empty-state
+          icon="pi pi-credit-card"
+          heading="Zatiaľ nemáš žiadny účet"
+          message="Založ si aspoň jeden, napríklad bežný účet v banke. Potom môžeš pridávať transakcie a importovať výpisy."
+        >
+          <p-button label="Pridať prvý účet" icon="pi pi-plus" (onClick)="openCreate()" />
+        </app-empty-state>
       </div>
-      <p-button label="Pridať" icon="pi pi-plus" (onClick)="openCreate()" />
-    </header>
+    } @else {
+      <div class="et-panel table-panel">
+        <p-table [value]="accounts()" dataKey="id" size="small">
+          <ng-template #header>
+            <tr>
+              <th scope="col">Názov</th>
+              <th scope="col">Mena</th>
+              <th scope="col" class="et-actions"><span class="sr-only">Akcie</span></th>
+            </tr>
+          </ng-template>
 
-    <p-table [value]="accounts()" styleClass="p-datatable-sm">
-      <ng-template #header>
-        <tr>
-          <th>Názov</th>
-          <th>Mena</th>
-          <th class="actions-col"></th>
-        </tr>
-      </ng-template>
+          <ng-template #body let-row>
+            <tr>
+              <td class="name">{{ row.name }}</td>
+              <td class="et-num et-muted">{{ row.currency }}</td>
+              <td class="et-actions">
+                <p-button
+                  icon="pi pi-pencil"
+                  severity="secondary"
+                  [text]="true"
+                  [rounded]="true"
+                  [ariaLabel]="'Upraviť účet ' + row.name"
+                  (onClick)="openEdit(row)"
+                />
+                <p-button
+                  icon="pi pi-trash"
+                  severity="danger"
+                  [text]="true"
+                  [rounded]="true"
+                  [ariaLabel]="'Zmazať účet ' + row.name"
+                  (onClick)="confirmDelete(row)"
+                />
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
 
-      <ng-template #body let-row>
-        <tr>
-          <td>{{ row.name }}</td>
-          <td>{{ row.currency }}</td>
-          <td class="actions-col">
-            <p-button icon="pi pi-pencil" severity="secondary" [text]="true" ariaLabel="Upraviť" (onClick)="openEdit(row)" />
-            <p-button icon="pi pi-trash" severity="danger" [text]="true" ariaLabel="Vymazať" (onClick)="confirmDelete(row)" />
-          </td>
-        </tr>
-      </ng-template>
-
-      <ng-template #emptymessage>
-        <tr>
-          <td colspan="3" class="empty">Zatiaľ nemáš žiadne účty. Pridaj si prvý.</td>
-        </tr>
-      </ng-template>
-    </p-table>
+      <p class="next et-faint">Výpis z banky nahráš v sekcii <a routerLink="/import">Import</a>.</p>
+    }
 
     <p-dialog
       [header]="editing() ? 'Upraviť účet' : 'Nový účet'"
       [(visible)]="dialogVisible"
       [modal]="true"
-      [style]="{ width: '26rem' }"
+      [draggable]="false"
+      [dismissableMask]="true"
+      [style]="{ width: 'min(26rem, calc(100vw - 1.5rem))' }"
     >
-      <form [formGroup]="form" class="dialog-form">
-        <div class="field">
-          <label for="name">Názov</label>
-          <input pInputText id="name" formControlName="name" placeholder="George bežný účet" />
+      <form class="et-form" [formGroup]="form" (ngSubmit)="save()" novalidate>
+        <div class="et-field">
+          <label for="account-name">Názov</label>
+          <input
+            pInputText
+            id="account-name"
+            formControlName="name"
+            maxlength="100"
+            placeholder="napr. George bežný účet"
+          />
+          <app-field-error [control]="form.controls.name" />
         </div>
 
-        <div class="field">
-          <label for="currency">Mena</label>
+        <div class="et-field">
+          <label for="account-currency">Mena</label>
           <p-select
-            inputId="currency"
+            inputId="account-currency"
             formControlName="currency"
             [options]="currencies"
-            placeholder="Vyber menu"
+            appendTo="body"
+            [fluid]="true"
+          />
+          <app-field-error [control]="form.controls.currency" />
+        </div>
+
+        <div class="et-form-actions">
+          <p-button
+            label="Zrušiť"
+            severity="secondary"
+            [text]="true"
+            (onClick)="dialogVisible.set(false)"
+          />
+          <p-button
+            type="submit"
+            [label]="editing() ? 'Uložiť zmeny' : 'Pridať účet'"
+            [loading]="saving()"
           />
         </div>
       </form>
-
-      <ng-template #footer>
-        <p-button label="Zrušiť" severity="secondary" [text]="true" (onClick)="dialogVisible.set(false)" />
-        <p-button label="Uložiť" [disabled]="form.invalid" [loading]="saving()" (onClick)="save()" />
-      </ng-template>
     </p-dialog>
   `,
   styles: `
-    .page-head {
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 1rem;
-      flex-wrap: wrap;
-      margin-bottom: 1.5rem;
+    .table-panel {
+      padding: var(--et-s2) var(--et-s3);
     }
 
-    h1 {
-      margin: 0.25rem 0 0;
-      font-size: 1.75rem;
-    }
-
-    .dialog-form {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      padding-top: 0.5rem;
-    }
-
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 0.375rem;
-    }
-
-    .field label {
-      font-size: 0.875rem;
+    .name {
       font-weight: 500;
     }
 
-    .actions-col {
-      width: 6rem;
-      text-align: right;
-      white-space: nowrap;
-    }
-
-    .empty {
-      text-align: center;
-      padding: 1.5rem 0;
-      color: var(--p-text-muted-color);
+    .next {
+      margin: var(--et-s3) 0 0;
+      font-size: 0.875rem;
     }
   `,
 })
 export class AccountsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly accountService = inject(AccountService);
-  private readonly messages = inject(MessageService);
-  private readonly confirmation = inject(ConfirmationService);
+  private readonly feedback = inject(FeedbackService);
 
   protected readonly accounts = this.accountService.accounts;
+  protected readonly list = rxResource({ stream: () => this.accountService.load() });
+
   protected readonly dialogVisible = signal(false);
   protected readonly saving = signal(false);
   protected readonly editing = signal<Account | null>(null);
@@ -150,12 +194,15 @@ export class AccountsComponent {
   protected readonly currencies = ['EUR', 'CZK', 'USD', 'GBP'];
 
   protected readonly form = this.fb.nonNullable.group({
-    name: ['', Validators.required],
+    name: ['', [Validators.required, Validators.maxLength(100)]],
     currency: ['EUR', Validators.required],
   });
 
-  constructor() {
-    this.accountService.load().subscribe();
+  protected onShortcut(event: KeyboardEvent): void {
+    if (event.key.toLowerCase() === 'n' && !shouldIgnoreShortcut(event)) {
+      event.preventDefault();
+      this.openCreate();
+    }
   }
 
   protected openCreate(): void {
@@ -172,12 +219,14 @@ export class AccountsComponent {
 
   protected save(): void {
     if (this.form.invalid) {
+      this.form.markAllAsTouched();
       return;
     }
 
     this.saving.set(true);
 
-    const payload = this.form.getRawValue();
+    const value = this.form.getRawValue();
+    const payload = { ...value, name: value.name.trim() };
     const current = this.editing();
     const request = current
       ? this.accountService.update(current.id, payload)
@@ -185,33 +234,26 @@ export class AccountsComponent {
 
     request.subscribe({
       next: () => {
-        this.messages.add({ severity: 'success', summary: 'Uložené' });
+        this.feedback.success(current ? 'Účet upravený' : 'Účet pridaný', payload.name);
         this.saving.set(false);
         this.dialogVisible.set(false);
       },
-      error: () => {
-        this.messages.add({ severity: 'error', summary: 'Uloženie zlyhalo' });
+      error: (err: unknown) => {
+        this.feedback.error('Účet sa nepodarilo uložiť', err);
         this.saving.set(false);
       },
     });
   }
 
   protected confirmDelete(row: Account): void {
-    this.confirmation.confirm({
-      header: 'Zmazať účet',
-      message: `Naozaj chceš zmazať účet "${row.name}"?`,
-      acceptLabel: 'Zmazať',
-      rejectLabel: 'Zrušiť',
-      acceptButtonStyleClass: 'p-button-danger',
+    this.feedback.confirmDestructive({
+      header: 'Zmazať účet?',
+      message: `Účet „${row.name}“ sa natrvalo odstráni. Účet, ktorý má transakcie, zmazať nejde.`,
       accept: () =>
         this.accountService.remove(row.id).subscribe({
-          next: () => this.messages.add({ severity: 'success', summary: 'Zmazané' }),
-          error: (err) =>
-            this.messages.add({
-              severity: 'error',
-              summary: 'Nedá sa zmazať',
-              detail: err.error?.detail ?? 'Účet má transakcie.',
-            }),
+          next: () => this.feedback.success('Účet zmazaný', row.name),
+          error: (err: unknown) =>
+            this.feedback.error('Účet sa nedá zmazať', err, 'Pravdepodobne má transakcie.'),
         }),
     });
   }

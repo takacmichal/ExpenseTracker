@@ -68,12 +68,12 @@ public class IncomeService {
                         ? null
                         : transactionRepository
                                 .findByIdAndUserId(request.transactionId(), currentUser.requireId())
-                                .orElseThrow(() -> new NotFoundException("Transaction", request.transactionId())));
+                                .orElseThrow(() -> new NotFoundException("Transakcia", request.transactionId())));
     }
 
     private Income requireOwned(UUID id) {
         return incomeRepository
                 .findByIdAndUserId(id, currentUser.requireId())
-                .orElseThrow(() -> new NotFoundException("Income", id));
+                .orElseThrow(() -> new NotFoundException("Príjem", id));
     }
 }

@@ -1,12 +1,24 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, inject, input } from '@angular/core';
 import { CurrencyPipe, DecimalPipe } from '@angular/common';
+import { rxResource } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
+import { forkJoin } from 'rxjs';
+import { ButtonModule } from 'primeng/button';
 import { ChartModule } from 'primeng/chart';
 import { DatePickerModule } from 'primeng/datepicker';
+import { SkeletonModule } from 'primeng/skeleton';
 
+import { BudgetService } from '../../core/api/budget.service';
 import { ReportService } from '../../core/api/report.service';
-import { CategoryTotal, MonthlySummary } from '../../core/models';
-import { chartPalette } from '../../theme';
+import { CategoryTotal } from '../../core/models';
+import { addMonths, isSameMonth, monthRange, toMonthKey } from '../../core/date-utils';
+import { plural } from '../../core/labels';
+import { UNCATEGORISED_COLOR, chartPalette, chartTooltip } from '../../theme';
+import { BudgetMeterComponent } from '../../shared/budget-meter.component';
+import { EmptyStateComponent } from '../../shared/empty-state.component';
+import { ErrorStateComponent } from '../../shared/error-state.component';
+import { PageHeaderComponent } from '../../shared/page-header.component';
 
 interface Segment {
   label: string;
@@ -15,165 +27,267 @@ interface Segment {
   color: string;
 }
 
-const UNCATEGORISED = chartPalette.faint;
+/** Parses the `?month=YYYY-MM` query param; anything else means the current month. */
+function parseMonth(value: string | undefined): Date {
+  const match = value ? /^(\d{4})-(\d{2})$/.exec(value) : null;
+  const now = new Date();
+  return match ? new Date(Number(match[1]), Number(match[2]) - 1, 1) : now;
+}
 
 @Component({
   selector: 'app-dashboard',
-  imports: [CurrencyPipe, DecimalPipe, FormsModule, ChartModule, DatePickerModule],
+  imports: [
+    CurrencyPipe,
+    DecimalPipe,
+    FormsModule,
+    RouterLink,
+    ButtonModule,
+    ChartModule,
+    DatePickerModule,
+    SkeletonModule,
+    BudgetMeterComponent,
+    EmptyStateComponent,
+    ErrorStateComponent,
+    PageHeaderComponent,
+  ],
   template: `
-    <header class="page-head">
-      <div>
-        <p class="et-eyebrow">Prehľad</p>
-        <h1>{{ monthLabel() }}</h1>
+    <app-page-header eyebrow="Prehľad" [heading]="monthLabel()">
+      <div class="month-nav">
+        <p-button
+          icon="pi pi-chevron-left"
+          severity="secondary"
+          [text]="true"
+          ariaLabel="Predchádzajúci mesiac"
+          (onClick)="shiftMonth(-1)"
+        />
+        <p-datepicker
+          [ngModel]="selectedMonth()"
+          (ngModelChange)="selectMonth($event)"
+          view="month"
+          dateFormat="MM yy"
+          [readonlyInput]="true"
+          [showIcon]="true"
+          iconDisplay="input"
+          ariaLabel="Vybrať mesiac"
+          inputStyleClass="month-input"
+        />
+        <p-button
+          icon="pi pi-chevron-right"
+          severity="secondary"
+          [text]="true"
+          ariaLabel="Nasledujúci mesiac"
+          [disabled]="isCurrentMonth()"
+          (onClick)="shiftMonth(1)"
+        />
       </div>
+    </app-page-header>
 
-      <p-datepicker
-        [(ngModel)]="selectedMonth"
-        view="month"
-        dateFormat="MM yy"
-        [showIcon]="true"
-        [readonlyInput]="true"
-        iconDisplay="input"
-      />
-    </header>
-
-    <section class="hero et-inset">
-      <div class="figures">
-        <div class="kept">
-          <p class="et-eyebrow">{{ balance() >= 0 ? 'Zostalo' : 'Prekročené o' }}</p>
-          <p class="et-num big" [class.et-kept]="balance() >= 0" [class.et-out]="balance() < 0">
-            {{ absBalance() | currency: 'EUR' }}
-          </p>
-        </div>
-
-        <div class="side">
-          <div>
-            <p class="et-eyebrow">Prišlo</p>
-            <p class="et-num mid et-in">{{ income() | currency: 'EUR' }}</p>
-          </div>
-          <div>
-            <p class="et-eyebrow">Odišlo</p>
-            <p class="et-num mid et-out">{{ expense() | currency: 'EUR' }}</p>
-          </div>
-        </div>
-      </div>
-
-      @if (base() > 0) {
-        <div class="meter" role="img" [attr.aria-label]="barSummary()">
-          @for (segment of segments(); track segment.label) {
-            <span
-              class="seg"
-              [style.width.%]="segment.share"
-              [style.background]="segment.color"
-              [title]="segment.label + ' · ' + (segment.amount | currency: 'EUR')"
-            ></span>
-          }
-          @if (keptShare() > 0) {
-            <span
-              class="seg kept-seg"
-              [style.width.%]="keptShare()"
-              [title]="'Zostalo · ' + (balance() | currency: 'EUR')"
-            ></span>
-          }
-        </div>
-
-        <p class="bar-note">
-          @if (balance() >= 0 && income() > 0) {
-            Z každého eura, ktoré prišlo, ti zostalo
-            <strong class="et-num et-kept">{{ keptRatio() | number: '1.0-0' }} centov</strong>.
-          } @else if (income() > 0) {
-            Minul si o
-            <strong class="et-num et-out">{{ overRatio() | number: '1.0-0' }} %</strong>
-            viac, než prišlo.
-          } @else {
-            Za tento mesiac zatiaľ neevidujem žiadny príjem.
-          }
-        </p>
-      } @else {
-        <div class="empty-hero">
-          <p>Za {{ monthLabel() }} tu zatiaľ nič nie je.</p>
-          <p class="hint">Pridaj transakciu alebo naimportuj výpis z banky.</p>
-        </div>
-      }
-    </section>
-
-    <section class="breakdown">
-      <div class="panel">
-        <p class="et-eyebrow panel-head">Na čo išli výdavky</p>
-
-        @if (expenseTotals().length) {
-          <div class="ring">
-            <p-chart type="doughnut" [data]="ringData()" [options]="ringOptions" />
-            <div class="ring-center">
-              <span class="et-eyebrow">Spolu</span>
-              <span class="et-num et-out">{{ expense() | currency: 'EUR' }}</span>
+    @if (report.error() && !report.hasValue()) {
+      <app-error-state [error]="report.error()" (retry)="report.reload()" />
+    } @else {
+      <section class="hero et-inset" [attr.aria-busy]="report.isLoading()">
+        @if (!report.hasValue()) {
+          <div class="figures">
+            <div>
+              <p-skeleton width="5rem" height="0.75rem" />
+              <p-skeleton width="14rem" height="3rem" class="gap-top" />
+            </div>
+            <div class="side">
+              <p-skeleton width="7rem" height="2.5rem" />
+              <p-skeleton width="7rem" height="2.5rem" />
             </div>
           </div>
-        } @else {
-          <p class="muted">Žiadne výdavky.</p>
-        }
-      </div>
+          <p-skeleton height="0.625rem" />
+        } @else if (base() > 0) {
+          <div class="figures">
+            <div>
+              <p class="et-eyebrow">{{ balance() >= 0 ? 'Zostalo' : 'Prekročené o' }}</p>
+              <p class="et-num big" [class.et-kept]="balance() >= 0" [class.et-out]="balance() < 0">
+                {{ absBalance() | currency: 'EUR' }}
+              </p>
+            </div>
 
-      <div class="panel">
-        <p class="et-eyebrow panel-head">Podľa kategórie</p>
+            <div class="side">
+              <div>
+                <p class="et-eyebrow">Prišlo</p>
+                <p class="et-num mid et-in">{{ income() | currency: 'EUR' }}</p>
+              </div>
+              <div>
+                <p class="et-eyebrow">Odišlo</p>
+                <p class="et-num mid et-out">{{ expense() | currency: 'EUR' }}</p>
+              </div>
+            </div>
+          </div>
 
-        @if (expenseTotals().length) {
-          <ul class="rows">
-            @for (row of expenseTotals(); track row.categoryName) {
-              <li>
-                <span class="dot" [style.background]="row.color ?? uncategorised"></span>
-                <span class="label">{{ row.categoryName ?? 'Nezaradené' }}</span>
-                <span class="count et-num">{{ row.transactionCount }}×</span>
-                <span class="amount et-num">{{ row.total | currency: 'EUR' }}</span>
-                <span class="share et-num">{{ shareOf(row) | number: '1.0-0' }} %</span>
-              </li>
+          <div class="meter" role="img" [attr.aria-label]="barSummary()">
+            @for (segment of segments(); track segment.label) {
+              <span
+                class="seg"
+                [style.width.%]="segment.share"
+                [style.background]="segment.color"
+                [title]="segment.label + ': ' + (segment.amount | currency: 'EUR')"
+              ></span>
             }
-          </ul>
+            @if (keptShare() > 0) {
+              <span
+                class="seg kept-seg"
+                [style.width.%]="keptShare()"
+                [title]="'Zostalo: ' + (balance() | currency: 'EUR')"
+              ></span>
+            }
+          </div>
+
+          <p class="bar-note">
+            @if (balance() >= 0 && income() > 0) {
+              Z každého eura, ktoré prišlo, ti zostalo
+              <strong class="et-num et-kept">{{ keptRatio() | number: '1.0-0' }} centov</strong>.
+            } @else if (income() > 0) {
+              Minul si o
+              <strong class="et-num et-out">{{ overRatio() | number: '1.0-0' }} %</strong>
+              viac, než prišlo.
+            } @else {
+              Za tento mesiac zatiaľ neevidujem žiadny príjem.
+            }
+          </p>
         } @else {
-          <p class="muted">Žiadne dáta.</p>
+          <app-empty-state
+            class="compact"
+            icon="pi pi-wallet"
+            [heading]="'Za ' + monthLabel() + ' tu zatiaľ nič nie je'"
+            message="Pridaj transakciu ručne alebo naimportuj výpis z banky."
+          >
+            <a pButton routerLink="/transactions" [queryParams]="{ add: 1 }"
+              ><i class="pi pi-plus" aria-hidden="true"></i>Pridať transakciu</a
+            >
+            <a pButton routerLink="/import" severity="secondary" [outlined]="true"
+              ><i class="pi pi-upload" aria-hidden="true"></i>Importovať výpis</a
+            >
+          </app-empty-state>
         }
-      </div>
-    </section>
+      </section>
+
+      @if (topBudgets().length) {
+        <section class="et-panel budgets" aria-labelledby="budgets-head">
+          <div class="budgets-head">
+            <h2 id="budgets-head" class="et-eyebrow">Rozpočty</h2>
+            <a routerLink="/budgets" [queryParams]="budgetsLink()" class="all-link">
+              Všetky rozpočty <i class="pi pi-arrow-right" aria-hidden="true"></i>
+            </a>
+          </div>
+          <div class="budget-list">
+            @for (budget of topBudgets(); track budget.budgetId) {
+              <app-budget-meter [status]="budget" [compact]="true" />
+            }
+          </div>
+        </section>
+      } @else if (budgetStatus.error()) {
+        <p class="budgets-error et-faint" role="status">
+          Rozpočty sa nepodarilo načítať.
+          <button type="button" class="retry" (click)="budgetStatus.reload()">Skúsiť znova</button>
+        </p>
+      }
+
+      @if (!report.hasValue() || expenseTotals().length) {
+        <section class="breakdown">
+          <div class="et-panel">
+            <p class="et-eyebrow et-panel-head">Na čo išli výdavky</p>
+
+            @if (!report.hasValue()) {
+              <div class="ring-skeleton"><p-skeleton shape="circle" size="12rem" /></div>
+            } @else {
+              <div class="ring">
+                <p-chart
+                  type="doughnut"
+                  [data]="ringData()"
+                  [options]="ringOptions"
+                  ariaLabel="Výdavky podľa kategórie"
+                />
+                <div class="ring-center">
+                  <span class="et-eyebrow">Spolu</span>
+                  <span class="et-num et-out">{{ expense() | currency: 'EUR' }}</span>
+                </div>
+              </div>
+            }
+          </div>
+
+          <div class="et-panel">
+            <p class="et-eyebrow et-panel-head">Podľa kategórie</p>
+
+            @if (!report.hasValue()) {
+              @for (i of [0, 1, 2, 3, 4]; track i) {
+                <p-skeleton height="1.25rem" class="row-skeleton" />
+              }
+            } @else {
+              <ul class="rows">
+                @for (row of expenseTotals(); track row.categoryId ?? row.categoryName) {
+                  <li>
+                    <span class="et-dot" [style.background]="row.color ?? uncategorised"></span>
+                    @if (row.categoryId) {
+                      <a
+                        class="label et-truncate"
+                        routerLink="/transactions"
+                        [queryParams]="transactionsLink(row)"
+                        >{{ row.categoryName }}</a
+                      >
+                    } @else {
+                      <span class="label et-truncate">{{ row.categoryName ?? 'Nezaradené' }}</span>
+                    }
+                    <span class="count et-num" [title]="countTitle(row)"
+                      >{{ row.transactionCount }}×</span
+                    >
+                    <span class="amount et-num">{{ row.total | currency: 'EUR' }}</span>
+                    <span class="share et-num">{{ shareOf(row) | number: '1.0-0' }} %</span>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        </section>
+      }
+    }
   `,
   styles: `
-    .page-head {
+    .month-nav {
       display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 1rem;
-      flex-wrap: wrap;
-      margin-bottom: 1.5rem;
+      align-items: center;
+      gap: var(--et-s1);
     }
 
-    h1 {
-      margin: 0.25rem 0 0;
-      font-size: 1.75rem;
-      text-transform: capitalize;
+    :host ::ng-deep .month-input {
+      width: 10.5rem;
     }
 
     .hero {
-      padding: 1.5rem;
-      margin-bottom: 1rem;
+      padding: var(--et-s5);
+      margin-bottom: var(--et-s4);
     }
 
     .figures {
       display: flex;
       align-items: flex-end;
       justify-content: space-between;
-      gap: 2rem;
+      gap: var(--et-s5) var(--et-s6);
       flex-wrap: wrap;
-      margin-bottom: 1.5rem;
+      margin-bottom: var(--et-s5);
+    }
+
+    .figures p {
+      margin: 0;
+    }
+
+    :host ::ng-deep .gap-top {
+      margin-top: var(--et-s2);
     }
 
     .big {
-      margin: 0.375rem 0 0;
+      margin-top: 0.375rem !important;
       font-size: clamp(2.25rem, 6vw, 3.25rem);
       font-weight: 600;
       line-height: 1;
     }
 
     .mid {
-      margin: 0.25rem 0 0;
+      margin-top: var(--et-s1) !important;
       font-size: 1.125rem;
       font-weight: 500;
     }
@@ -181,11 +295,6 @@ const UNCATEGORISED = chartPalette.faint;
     .side {
       display: flex;
       gap: 2.5rem;
-    }
-
-    .kept p,
-    .side p {
-      margin: 0;
     }
 
     /* The signature: one month of money, left to right, read like a bargraph. */
@@ -229,49 +338,90 @@ const UNCATEGORISED = chartPalette.faint;
       color: var(--et-muted);
     }
 
-    .empty-hero {
-      padding: 1rem 0 0.25rem;
+    .budgets {
+      margin-bottom: var(--et-s4);
+      padding: 1.25rem var(--et-s5);
     }
 
-    .empty-hero p {
+    .budgets-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--et-s3);
+      margin-bottom: var(--et-s4);
+    }
+
+    .budgets-head h2 {
       margin: 0;
     }
 
-    .hint {
-      margin-top: 0.25rem !important;
-      font-size: 0.875rem;
-      color: var(--et-faint);
+    .all-link {
+      font-size: 0.8125rem;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .all-link:hover {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .all-link i {
+      font-size: 0.6875rem;
+    }
+
+    .budget-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
+      gap: var(--et-s4) var(--et-s5);
+    }
+
+    .budgets-error {
+      margin: 0 0 var(--et-s4);
+      font-size: 0.8125rem;
+    }
+
+    .retry {
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--et-kept);
+      font: inherit;
+      text-decoration: underline;
+      cursor: pointer;
     }
 
     .breakdown {
       display: grid;
-      grid-template-columns: minmax(15rem, 22rem) 1fr;
-      gap: 1rem;
+      grid-template-columns: minmax(15rem, 22rem) minmax(0, 1fr);
+      gap: var(--et-s4);
       align-items: start;
     }
 
-    .panel {
-      padding: 1.25rem;
-      border: 1px solid var(--et-line);
-      border-radius: 0.75rem;
-      background: var(--et-surface);
-    }
-
-    .panel-head {
-      margin: 0 0 1rem;
-    }
-
-    .ring {
+    .ring,
+    .ring-skeleton {
       position: relative;
+      max-width: 18rem;
+      margin: 0 auto;
+    }
+
+    .ring-skeleton {
       display: grid;
       place-items: center;
     }
 
+    .ring p-chart {
+      display: block;
+      width: 100%;
+    }
+
     .ring-center {
       position: absolute;
+      inset: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
+      justify-content: center;
       gap: 0.125rem;
       pointer-events: none;
     }
@@ -279,6 +429,10 @@ const UNCATEGORISED = chartPalette.faint;
     .ring-center span:last-child {
       font-size: 1.0625rem;
       font-weight: 600;
+    }
+
+    :host ::ng-deep .row-skeleton {
+      margin: 0.625rem 0;
     }
 
     .rows {
@@ -289,9 +443,9 @@ const UNCATEGORISED = chartPalette.faint;
 
     .rows li {
       display: grid;
-      grid-template-columns: 0.5rem 1fr auto auto 3rem;
+      grid-template-columns: 0.5rem minmax(0, 1fr) auto auto 3rem;
       align-items: center;
-      gap: 0.75rem;
+      gap: var(--et-s3);
       padding: 0.625rem 0;
       border-bottom: 1px solid var(--et-surface-2);
       font-size: 0.9375rem;
@@ -301,16 +455,15 @@ const UNCATEGORISED = chartPalette.faint;
       border-bottom: none;
     }
 
-    .dot {
-      width: 0.5rem;
-      height: 0.5rem;
-      border-radius: 50%;
+    a.label {
+      color: inherit;
+      text-decoration: none;
     }
 
-    .label {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    a.label:hover {
+      color: var(--et-kept);
+      text-decoration: underline;
+      text-underline-offset: 3px;
     }
 
     .count {
@@ -320,6 +473,7 @@ const UNCATEGORISED = chartPalette.faint;
 
     .amount {
       font-weight: 500;
+      text-align: right;
     }
 
     .share {
@@ -328,39 +482,90 @@ const UNCATEGORISED = chartPalette.faint;
       color: var(--et-muted);
     }
 
-    .muted {
-      margin: 0;
-      color: var(--et-faint);
-      font-size: 0.9375rem;
-    }
-
     @media (max-width: 820px) {
       .breakdown {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
 
       .side {
-        gap: 1.5rem;
+        gap: var(--et-s5);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .hero {
+        padding: 1.25rem var(--et-s4);
+      }
+
+      .rows li {
+        grid-template-columns: 0.5rem minmax(0, 1fr) auto 2.75rem;
+        gap: var(--et-s2);
+      }
+
+      .count {
+        display: none;
+      }
+
+      .ring,
+      .ring-skeleton {
+        max-width: 13rem;
       }
     }
   `,
 })
 export class DashboardComponent {
   private readonly reports = inject(ReportService);
+  private readonly budgetService = inject(BudgetService);
+  private readonly router = inject(Router);
 
-  protected readonly uncategorised = UNCATEGORISED;
+  protected readonly uncategorised = UNCATEGORISED_COLOR;
 
-  protected readonly selectedMonth = signal(new Date());
-  protected readonly summary = signal<MonthlySummary | null>(null);
-  protected readonly categoryTotals = signal<CategoryTotal[]>([]);
+  /** Bound from the `?month=YYYY-MM` query param, so the month survives reload and back. */
+  readonly month = input<string>();
 
-  protected readonly income = computed(() => this.summary()?.totalIncome ?? 0);
-  protected readonly expense = computed(() => this.summary()?.totalExpense ?? 0);
-  protected readonly balance = computed(() => this.summary()?.balance ?? 0);
+  protected readonly selectedMonth = computed(() => parseMonth(this.month()));
+  protected readonly isCurrentMonth = computed(() => isSameMonth(this.selectedMonth(), new Date()));
+
+  protected readonly report = rxResource({
+    params: () => this.selectedMonth(),
+    stream: ({ params: month }) => {
+      const { from, to } = monthRange(month);
+      return forkJoin({
+        summary: this.reports.summary(toMonthKey(month)),
+        breakdown: this.reports.byCategory(from, to),
+      });
+    },
+  });
+
+  /** Budget gauges for the same month; the widget stays hidden when there are none. */
+  protected readonly budgetStatus = rxResource({
+    params: () => this.selectedMonth(),
+    stream: ({ params: month }) =>
+      this.budgetService.status(month.getFullYear(), month.getMonth() + 1),
+  });
+
+  /** The few budgets closest to (or past) their limit. */
+  protected readonly topBudgets = computed(() =>
+    this.budgetStatus.hasValue()
+      ? [...this.budgetStatus.value().budgets]
+          .sort((a, b) => b.percentUsed - a.percentUsed)
+          .slice(0, 4)
+      : [],
+  );
+
+  protected readonly budgetsLink = computed(() =>
+    this.isCurrentMonth() ? {} : { month: toMonthKey(this.selectedMonth()) },
+  );
+
+  private readonly data = computed(() => (this.report.hasValue() ? this.report.value() : null));
+
+  protected readonly income = computed(() => this.data()?.summary.totalIncome ?? 0);
+  protected readonly expense = computed(() => this.data()?.summary.totalExpense ?? 0);
+  protected readonly balance = computed(() => this.data()?.summary.balance ?? 0);
   protected readonly absBalance = computed(() => Math.abs(this.balance()));
 
   protected readonly expenseTotals = computed(() =>
-    this.categoryTotals()
+    (this.data()?.breakdown.categories ?? [])
       .filter((total) => total.type === 'EXPENSE')
       .sort((a, b) => b.total - a.total),
   );
@@ -378,7 +583,7 @@ export class DashboardComponent {
       label: total.categoryName ?? 'Nezaradené',
       amount: total.total,
       share: (total.total / base) * 100,
-      color: total.color ?? UNCATEGORISED,
+      color: total.color ?? UNCATEGORISED_COLOR,
     }));
   });
 
@@ -399,6 +604,12 @@ export class DashboardComponent {
     this.selectedMonth().toLocaleDateString('sk-SK', { month: 'long', year: 'numeric' }),
   );
 
+  protected readonly barSummary = computed(() => {
+    const format = (value: number) =>
+      value.toLocaleString('sk-SK', { style: 'currency', currency: 'EUR' });
+    return `Prišlo ${format(this.income())}, odišlo ${format(this.expense())}, zostalo ${format(this.balance())}`;
+  });
+
   protected readonly ringData = computed(() => {
     const totals = this.expenseTotals();
 
@@ -407,7 +618,7 @@ export class DashboardComponent {
       datasets: [
         {
           data: totals.map((total) => total.total),
-          backgroundColor: totals.map((total) => total.color ?? UNCATEGORISED),
+          backgroundColor: totals.map((total) => total.color ?? UNCATEGORISED_COLOR),
           borderColor: chartPalette.surface,
           borderWidth: 2,
           hoverOffset: 6,
@@ -421,30 +632,18 @@ export class DashboardComponent {
     maintainAspectRatio: true,
     plugins: {
       legend: { display: false },
-      tooltip: {
-        backgroundColor: chartPalette.surface2,
-        borderColor: chartPalette.line,
-        borderWidth: 1,
-        titleColor: chartPalette.text,
-        bodyColor: chartPalette.muted,
-        padding: 10,
-        displayColors: false,
-      },
+      tooltip: { ...chartTooltip, displayColors: false },
     },
   };
 
-  constructor() {
-    effect(() => {
-      const month = this.selectedMonth();
-      const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
-      const from = `${monthKey}-01`;
-      const to = this.lastDayOfMonth(month);
+  protected selectMonth(month: Date | null): void {
+    if (month) {
+      this.navigateTo(month);
+    }
+  }
 
-      this.reports.summary(monthKey).subscribe((summary) => this.summary.set(summary));
-      this.reports
-        .byCategory(from, to)
-        .subscribe((breakdown) => this.categoryTotals.set(breakdown.categories));
-    });
+  protected shiftMonth(delta: number): void {
+    this.navigateTo(addMonths(this.selectedMonth(), delta));
   }
 
   protected shareOf(row: CategoryTotal): number {
@@ -452,12 +651,21 @@ export class DashboardComponent {
     return expense > 0 ? (row.total / expense) * 100 : 0;
   }
 
-  protected barSummary(): string {
-    return `Prišlo ${this.income()} €, odišlo ${this.expense()} €, zostalo ${this.balance()} €`;
+  protected countTitle(row: CategoryTotal): string {
+    const n = row.transactionCount;
+    return `${n} ${plural(n, 'transakcia', 'transakcie', 'transakcií')}`;
   }
 
-  private lastDayOfMonth(month: Date): string {
-    const last = new Date(month.getFullYear(), month.getMonth() + 1, 0);
-    return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`;
+  protected transactionsLink(row: CategoryTotal): Record<string, string> {
+    const { from, to } = monthRange(this.selectedMonth());
+    return { from, to, category: row.categoryId ?? '', type: 'EXPENSE' };
+  }
+
+  private navigateTo(month: Date): void {
+    const isCurrent = isSameMonth(month, new Date());
+    void this.router.navigate([], {
+      queryParams: { month: isCurrent ? null : toMonthKey(month) },
+      queryParamsHandling: 'merge',
+    });
   }
 }
